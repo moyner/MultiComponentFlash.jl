@@ -1,10 +1,26 @@
+# Vapor-liquid equilibrium for constants
+Many vapor-liquid problems can be solved under the assumption of equilibrium constants (K-values). If the K-values are independent of the phase mole fractions, the vapor fraction ``V`` can be determined by a solution of the Rachford-Rice equations. We define the standard relations for molar balance:
+`` z_i = V y_i + (1-V) x_i ``
+where `` z_i `` is the overall mole fraction of component ``i``, ``y_i`` the vapor mole fraction of that same component and ``x_i`` the liquid fraction:
+``x_i \frac{z_i}{(1 - V + V*K_i)}, \quad y_i = K_i x_i``.
 
-# Introduction
+The Rachford-Rice reformulation of these equations is the natural choice for a numerical solution. For more details, the [Wikipedia page on flash evaporation](https://en.wikipedia.org/wiki/Flash_evaporation) is a good starting point.
 
-## Vapor-liquid equilibrium for constants
+We can demonstrate this by a binary system where the first component is light and easy to vaporize (it is found in the vapor phase 9 times out of 10) and the second is heavy (being found in the liquid phase 9 times out of 10). Let us define this mixturem, and take a 70-30 mixture in moles and perform a flash to find the vapor fraction ``V``:
+```jldoctest
+using MultiComponentFlash
+K = [0.1, 9.0] # K-values
+z = [0.7, 0.3] # Mole fractions
+solve_rachford_rice(K, z)
 
+# output
 
-## Two-phase multicomponent flash
+0.24583333333333332
+```
+The result indicates that we can expect to have about 3 moles of liquid per mole of vapor.
+
+# Two-phase multicomponent flash
+For more complex mixtures, the assumption of constant K-values is not very accurate. We need to perform a full flash by defining a mixture together with an equation-of-state:
 ```jldoctest
 using MultiComponentFlash
 # Define two species: One heavy and one light.
@@ -35,7 +51,7 @@ V = flash_2ph(eos, conditions)
 0.265849860967563
 ```
 
-### K-values and fractions
+## K-values and fractions
 ```@meta
 DocTestSetup = quote
     using MultiComponentFlash
@@ -80,7 +96,7 @@ julia> vapor_mole_fraction.(z, K, V)
 ```
 we see that the vapor phase is almost entirely made up of the lighter methane at the chosen conditions.
 
-### Switching algorithms
+## Switching algorithms
 If we examine the third output, we can see output about number of iterations and a verification that the flash converged within the default tolerance:
 ```jldoctest
 julia> report
@@ -95,7 +111,7 @@ julia> V, K, report = flash_2ph(eos, conditions, extra_out = true, method = Newt
 ```
 It is also possible to use `SSINewtonFlash()` that switches from SSI to Newton after a prescribed number of iterations, which is effective around the critical region where SSI has slow convergence.
 
-## Avoiding allocations
+# Avoiding allocations
 If many flashes of the same mixture are to be performed at different conditions, you may want to pre-allocate the storage buffers for the flash:
 ```jldoctest
 m = SSIFlash()
