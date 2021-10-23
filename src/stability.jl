@@ -1,3 +1,12 @@
+"""
+    stability_2ph(eos, c, [K])
+
+Determine if mixture is single-phase stable under conditions `c`.
+
+This is done using a version of Michelsen's stability test.
+
+Reference: [The isothermal flash problem. Part I. Stability](https://doi.org/10.1016/0378-3812(82)85001-2)
+"""
 function stability_2ph(eos, c, K = initial_guess_K(eos, c); kwarg...)
     storage = flash_storage(eos, c)
     stability_2ph!(storage, K, eos, c)
@@ -34,6 +43,11 @@ f_ratio(f_z, f_xy, ::Val{false}) = f_xy/f_z
 xy_value(z, K, ::Val{true}) = z*K
 xy_value(z, K, ::Val{false}) = z/K
 
+"""
+    stability_2ph!(storage, eos, c, [K])
+
+In-place version of [`stability_2ph`](@ref). `storage` should be allocated by `flash_storage`.
+"""
 function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, inside_is_vapor;
     tol_equil = 1e-10, tol_trivial = 1e-5, maxiter = 1000)
     trivial = false

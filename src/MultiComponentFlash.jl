@@ -7,6 +7,7 @@ module MultiComponentFlash
     export GenericCubicEOS, number_of_components
     # Flash interfaces
     export flash_2ph, flash_2ph!, flash_storage
+    export stability_2ph, stability_2ph!
     # Algorithms for flash
     export SSIFlash, NewtonFlash, SSINewtonFlash
     # Mixtures and their molecular makeup
@@ -38,6 +39,7 @@ module MultiComponentFlash
     include("rachford_rice.jl")
     include("eos.jl")
     include("flash.jl")
+    include("derivatives.jl")
     include("stability.jl")
     include("tables.jl")
 
