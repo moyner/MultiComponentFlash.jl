@@ -138,8 +138,14 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     force_coefficients!(coeff, eos, cond)
 end
 
+"""
+    force_coefficients!(coeff, eos, cond)
+
+In-place update of force coefficients.
+
+See also [`force_coefficients`](@ref)
+"""
 function force_coefficients!(coeff, eos::AbstractCubicEOS, arg...)
-    # A_ij, B_i
     update_attractive_linear!(coeff.A_i, eos, arg...)
     update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, arg...)
     update_repulsive!(coeff.B_i, eos, arg...)
