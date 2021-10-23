@@ -33,10 +33,10 @@ module MultiComponentFlash
 
     const MINIMUM_COMPOSITION = 1e-10
     const IDEAL_GAS_CONSTANT = 8.3144598
-    include("types.jl")
+    include("mixtures.jl")
     include("kvalues.jl")
     include("rachford_rice.jl")
-    include("cubic_eos.jl")
+    include("eos.jl")
     include("flash.jl")
     include("stability.jl")
     include("tables.jl")
