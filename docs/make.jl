@@ -1,5 +1,6 @@
 using MultiComponentFlash
 using Documenter
+using BenchmarkTools, Plots
 
 DocMeta.setdocmeta!(MultiComponentFlash, :DocTestSetup, :(using MultiComponentFlash); recursive=true)
 
@@ -21,6 +22,9 @@ makedocs(;
             "Equations of state" => "api/eos.md",
             "Vapor-liquid equilibrium (Flash)" => "api/flash.md",
             "Utilities" => "api/utilities.md",
+        ],
+        "Examples" => Any[
+            "Introduction" => "examples/basics.md"
         ]
     ],
 )

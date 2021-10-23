@@ -43,7 +43,7 @@ struct SSINewtonFlash <: AbstractNewtonFlash
 end
 
 """
-    flash_2ph(eos, c, [K]; <keyword arguments>)
+    flash_2ph(eos, c, [K], [V]; <keyword arguments>)
 
 Perform two-phase flash with a given EOS under a set of specific conditions. Returns vapor fraction. Modifies K in-place.
 
@@ -61,6 +61,7 @@ Two outcomes are possible:
 - `eos`: the equation-of-state to be used for the flash
 - `c`: conditions to flash the mixture at on the form `(p = 10e5, T = 303.15, z = [0.5, 0.3, 0.2])`
 - `K`: optionally a buffer of length `number_of_components(eos)` used to hold K-values. Modified in-place.
+- `V`: optionally the initial guess for V. If this value is not `NaN`, the stability check will be skipped.
 
 # Keyword arguments
 - `method = SSIFlash()`: Flash method to use. Can be `SSIFlash()`, `NewtonFlash()` or `SSINewtonFlash()`.
@@ -85,7 +86,7 @@ function flash_2ph(eos, c::T, K = initial_guess_K(eos, c); method = SSIFlash(), 
 end
 
 """
-    flash_2ph!(storage, eos, c, K; <keyword arguments>)
+    flash_2ph!(storage, K, eos, c, [V]; <keyword arguments>)
 
 Non-allocating version of [`flash_2ph`](@ref) where storage is pre-allocated.
 
