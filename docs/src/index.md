@@ -41,7 +41,12 @@ If you want to use the former features, please know that they might be subject t
 * Peng-Robinson is the only equation of state that has been thoroughly validated.
 
 # Other packages
-[Clapeyron.jl](https://github.com/ypaul21/Clapeyron.jl) supports more advanced equations of state in addition to the cubics (SAFT-type and empirical EOS) and has a much larger API for thermodynamical properties.
+Julia packages:
+* [Clapeyron.jl](https://github.com/ypaul21/Clapeyron.jl) supports more advanced equations of state in addition to the cubics (SAFT-type and empirical EOS) and has a much larger API for thermodynamical properties. At the time of writing, this package does not support a full flash.
+
+Julia interfaces to other useful packages:
+* [PyThermo.jl](https://github.com/stillyslalom/PyThermo.jl) is an interface to the [PyThermo](https://pypi.org/project/pythermo/) package.
+* [CoolProp.jl](https://github.com/CoolProp/CoolProp.jl) is an interface to the [CoolProp](http://www.coolprop.org/) library.
 
 # Contact
-You can use the [Github webpage](https://github.com/moyner/MultiComponentFlash.jl) or drop me a line at [Olav Møyner](olav.moyner@sintef.no).
+You can use the [Github webpage](https://github.com/moyner/MultiComponentFlash.jl) or drop me a line at [Olav Møyner](mailto:olav.moyner@gmail.no).
