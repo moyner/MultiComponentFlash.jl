@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Advanced usage · MultiComponentFlash.jl</title><script data-outdated-warner src="../../assets/warner.js"></script><link rel="canonical" href="https://moyner.github.io/MultiComponentFlash.jl/examples/advanced/"/><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.039/juliamono-regular.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.11/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">MultiComponentFlash.jl</a></span></div><form class="docs-search" action="../../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../basics/">Basic usage</a></li><li class="is-active"><a class="tocitem" href>Advanced usage</a><ul class="internal"><li class="toplevel"><a class="tocitem" href="#Avoiding-allocations"><span>Avoiding allocations</span></a></li><li class="toplevel"><a class="tocitem" href="#Performance-example"><span>Performance example</span></a></li><li class="toplevel"><a class="tocitem" href="#Generate-and-plot-a-phase-diagram"><span>Generate and plot a phase diagram</span></a></li></ul></li></ul></li><li><span class="tocitem">API</span><ul><li><a class="tocitem" href="../../api/mixtures/">Mixtures</a></li><li><a class="tocitem" href="../../api/kvalues/">Equilibrium constants</a></li><li><a class="tocitem" href="../../api/eos/">Equations of state</a></li><li><a class="tocitem" href="../../api/flash/">Vapor-liquid equilibrium (Flash)</a></li><li><a class="tocitem" href="../../api/utilities/">Utilities</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Advanced usage</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Advanced usage</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/moyner/MultiComponentFlash.jl/blob/master/docs/src/examples/advanced.md#" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Advanced-usage"><a class="docs-heading-anchor" href="#Advanced-usage">Advanced usage</a><a id="Advanced-usage-1"></a><a class="docs-heading-anchor-permalink" href="#Advanced-usage" title="Permalink"></a></h1><p>These are intended as more advanced examples for users who may want to use <code>MultiComponentFlash</code> as a part of another code, or get better performance by pre-allocating buffers. Please read <a href="../basics/#Basic-usage">Basic usage</a> first.</p><h1 id="Avoiding-allocations"><a class="docs-heading-anchor" href="#Avoiding-allocations">Avoiding allocations</a><a id="Avoiding-allocations-1"></a><a class="docs-heading-anchor-permalink" href="#Avoiding-allocations" title="Permalink"></a></h1><p>If many flashes of the same mixture are to be performed at different conditions, you may want to pre-allocate the storage buffers for the flash:</p><pre><code class="language-julia hljs">m = SSIFlash()
+K = zeros(number_of_components(eos))
+S = flash_storage(eos, conditions, method = m)
+@allocated V = flash_2ph!(S, K, eos, conditions, method = m)
+
+# output
+
+16</code></pre><p>See the unit tests for examples where the flash can use <code>StaticArrays</code> to avoid allocations entirely.</p><h1 id="Performance-example"><a class="docs-heading-anchor" href="#Performance-example">Performance example</a><a id="Performance-example-1"></a><a class="docs-heading-anchor-permalink" href="#Performance-example" title="Permalink"></a></h1><p>The default interface is designed for ease-of-use with standard Julia types, but the module  also supports further by using <code>StaticArrays</code>:</p><pre><code class="language-julia hljs">using MultiComponentFlash, BenchmarkTools, StaticArrays
+function bench(m, static_size = false)
+    p = 6e6
+    T = 480.0
+    # Take the SPE5 benchmark
+    eos, data = cubic_benchmark(&quot;spe5&quot;)
+    n = number_of_components(eos)
+    z = repeat([1/n], n)
+    conditions = (p = p, T = T, z = z)
+    S = flash_storage(eos, conditions, method = m, static_size = static_size)
+    K = initial_guess_K(eos, conditions)
+    if static_size
+        N = number_of_components(eos)
+        K = MVector{N}(K)
+    end
+    V, K, status = flash_2ph!(S, K, eos, conditions, NaN, method = m, extra_out = true)
+    println(&quot;V = $V (Completed in $(status.its) iterations)&quot;)
+    @btime flash_2ph!($S, $K, $eos, $conditions, NaN, method = $m)
+    return nothing
+end
+println(&quot;SSI:&quot;)
+bench(SSIFlash())
+println(&quot;SSI (static arrays):&quot;)
+bench(SSIFlash(), true)
+##
+println(&quot;Newton:&quot;)
+bench(NewtonFlash())
+println(&quot;Newton (static arrays):&quot;)
+bench(NewtonFlash(), true)</code></pre><p>The output will be a bit different on other CPUs, but this flash generally takes around 20 microseconds to complete, including both stability test and flash. </p><pre><code class="nohighlight hljs">SSI:
+V = 0.03279769425318795 (Completed in 14 iterations)
+  18.500 μs (0 allocations: 0 bytes)
+SSI (static arrays):
+V = 0.03279769425318795 (Completed in 14 iterations)
+  16.500 μs (0 allocations: 0 bytes)
+
+Newton:
+V = 0.032797694260046494 (Completed in 4 iterations)
+  20.100 μs (0 allocations: 0 bytes)
+Newton (static arrays):
+V = 0.032797694260046494 (Completed in 4 iterations)
+  19.900 μs (0 allocations: 0 bytes)</code></pre><div class="admonition is-info"><header class="admonition-header">Use of `StaticArrays`</header><div class="admonition-body"><p>Switching to statically sized arrays can improve the speed, at the cost of longer compilation times. Please note that for <code>StaticArrays</code> there will be compilation that is dependent on the number of components in your mixture. For example, switching from a five to six component mixture will trigger a full recompilation of your chosen flash.</p></div></div><h1 id="Generate-and-plot-a-phase-diagram"><a class="docs-heading-anchor" href="#Generate-and-plot-a-phase-diagram">Generate and plot a phase diagram</a><a id="Generate-and-plot-a-phase-diagram-1"></a><a class="docs-heading-anchor-permalink" href="#Generate-and-plot-a-phase-diagram" title="Permalink"></a></h1><p>We create a three-component mixture and flash for a range of pressure and temperature conditions:</p><pre><code class="language-julia hljs">using MultiComponentFlash, Plots
+ns = 1000
+ubar = 1e5
+# Pressure range
+p0 = 1*ubar
+p1 = 120*ubar
+# Temperature range
+T0 = 273.15 + 1
+T1 = 263.15 + 350
+# Define mixture + eos
+names = [&quot;Methane&quot;, &quot;CarbonDioxide&quot;, &quot;n-Decane&quot;]
+props = MolecularProperty.(names)
+mixture = MultiComponentMixture(props)
+eos = GenericCubicEOS(mixture)
+# Constant mole fractions, vary p-T
+z = [0.3, 0.1, 0.6]
+p  = range(p0, p1, length = ns)
+T = range(T0, T1, length = ns)
+cond = (p = p0, T = T0, z = z)
+
+m = SSIFlash()
+S = flash_storage(eos, cond, method = m)
+K = initial_guess_K(eos, cond)
+data = zeros(ns, ns)
+for ip = 1:ns
+    for iT = 1:ns
+        c = (p = p[ip], T = T[iT], z = z)
+        data[ip, iT] = flash_2ph!(S, K, eos, c, NaN, method = m)
+    end
+end
+
+contour(p./ubar, T .- 273.15, data, levels = 10, fill=(true,cgrad(:hot)))
+ylabel!(&quot;Pressure [Bar]&quot;)
+xlabel!(&quot;T [°Celsius]&quot;)</code></pre><p><img src="../../assets/phase_diagram_simple.png" alt="Phase diagram"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../basics/">« Basic usage</a><a class="docs-footer-nextpage" href="../../api/mixtures/">Mixtures »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.10 on <span class="colophon-date" title="Sunday 24 October 2021 10:42">Sunday 24 October 2021</span>. Using Julia version 1.6.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
