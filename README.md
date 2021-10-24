@@ -46,6 +46,7 @@ V = solve_rachford_rice(K, z)
 0.24583333333333332
 ```
 ## Flash with cubic equations of state
+Solve vapor-liquid equilibrium with a two-component mixture and the Peng-Robinson equation of state:
 ```julia
 props = MolecularProperty.(["Methane", "n-Decane"])
 mixture = MultiComponentMixture(props)
@@ -64,6 +65,7 @@ julia> V
 0.20785284212697513
 ```
 ## Get K-values and calculate liquid and vapor mole fractions
+If we also want to know how the components are partitioned in the two phases, we can turn on the `extra_out` flag.
 ```
 V, K, = flash_2ph(eos, conditions, extra_out = true)
 x = liquid_mole_fraction.(z, K, V)
@@ -87,4 +89,8 @@ julia> K
  0.00048241080032170367
  ```
 
- More examples, and details are found in the [documentation](https://moyner.github.io/MultiComponentFlash.jl/stable).
+## Generation of phase diagrams
+More examples, and details are found in the [documentation](https://moyner.github.io/MultiComponentFlash.jl/stable). Here is a p-T phase diagram for methane, n-decane and carbon dioxide found in the advanced examples:
+![Phase diagram](docs/src/assets/phase_diagram_simple.png)
+
+

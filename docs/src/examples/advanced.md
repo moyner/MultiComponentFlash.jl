@@ -87,3 +87,43 @@ V = 0.032797694260046494 (Completed in 4 iterations)
 
 !!! note "Use of `StaticArrays`"
     Switching to statically sized arrays can improve the speed, at the cost of longer compilation times. Please note that for `StaticArrays` there will be compilation that is dependent on the number of components in your mixture. For example, switching from a five to six component mixture will trigger a full recompilation of your chosen flash.
+
+# Generate and plot a phase diagram
+We create a three-component mixture and flash for a range of pressure and temperature conditions:
+```julia
+using MultiComponentFlash, Plots
+ns = 1000
+ubar = 1e5
+# Pressure range
+p0 = 1*ubar
+p1 = 120*ubar
+# Temperature range
+T0 = 273.15 + 1
+T1 = 263.15 + 350
+# Define mixture + eos
+names = ["Methane", "CarbonDioxide", "n-Decane"]
+props = MolecularProperty.(names)
+mixture = MultiComponentMixture(props)
+eos = GenericCubicEOS(mixture)
+# Constant mole fractions, vary p-T
+z = [0.3, 0.1, 0.6]
+p  = range(p0, p1, length = ns)
+T = range(T0, T1, length = ns)
+cond = (p = p0, T = T0, z = z)
+
+m = SSIFlash()
+S = flash_storage(eos, cond, method = m)
+K = initial_guess_K(eos, cond)
+data = zeros(ns, ns)
+for ip = 1:ns
+    for iT = 1:ns
+        c = (p = p[ip], T = T[iT], z = z)
+        data[ip, iT] = flash_2ph!(S, K, eos, c, NaN, method = m)
+    end
+end
+
+contour(p./ubar, T .- 273.15, data, levels = 10, fill=(true,cgrad(:hot)))
+ylabel!("Pressure [Bar]")
+xlabel!("T [°Celsius]")
+```
+![Phase diagram](../assets/phase_diagram_simple.png)
