@@ -16,6 +16,10 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Examples" => Any[
+            "Basic usage" => "examples/basics.md",
+            "Advanced usage" => "examples/advanced.md"
+        ],
         "API" => Any[
             "Mixtures" => "api/mixtures.md",
             "Equilibrium constants" => "api/kvalues.md",
@@ -23,9 +27,6 @@ makedocs(;
             "Vapor-liquid equilibrium (Flash)" => "api/flash.md",
             "Utilities" => "api/utilities.md",
         ],
-        "Examples" => Any[
-            "Introduction" => "examples/basics.md"
-        ]
     ],
 )
 

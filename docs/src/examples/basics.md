@@ -1,3 +1,6 @@
+# Basic usage
+This section covers the basics of how to perform vapor-liquid flashes. For examples of how to get better performance, please see [Advanced usage](@ref).
+
 # Vapor-liquid equilibrium for constants
 Many vapor-liquid problems can be solved under the assumption of equilibrium constants (K-values). If the K-values are independent of the phase mole fractions, the vapor fraction ``V`` can be determined by a solution of the Rachford-Rice equations. We define the standard relations for molar balance:
 `` z_i = V y_i + (1-V) x_i ``
@@ -110,17 +113,3 @@ julia> V, K, report = flash_2ph(eos, conditions, extra_out = true, method = Newt
 (its = 5, converged = true)
 ```
 It is also possible to use `SSINewtonFlash()` that switches from SSI to Newton after a prescribed number of iterations, which is effective around the critical region where SSI has slow convergence.
-
-# Avoiding allocations
-If many flashes of the same mixture are to be performed at different conditions, you may want to pre-allocate the storage buffers for the flash:
-```jldoctest
-m = SSIFlash()
-K = zeros(number_of_components(eos))
-S = flash_storage(eos, conditions, method = m)
-@allocated V = flash_2ph!(S, K, eos, conditions, method = m)
-
-# output
-
-16
-```
-See the unit tests for examples where the flash can use `StaticArrays` to avoid allocations entirely.
