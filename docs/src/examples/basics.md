@@ -51,7 +51,7 @@ V = flash_2ph(eos, conditions)
 
 # output
 
-0.265849860967563
+0.2658498609675619
 ```
 
 ## K-values and fractions
