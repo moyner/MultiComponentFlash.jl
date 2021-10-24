@@ -6,8 +6,6 @@
 
 
 # Introduction
-Welcome to the documentation for [MultiComponentFlash](https://github.com/moyner/MultiComponentFlash.jl).
-
 This package implements several equations of state for multicomponent vapor-liquid equilibrium, also called flash, for mixtures. These can be used to determine vapor fractions, molar partition between the phases and predict properties such as density and volume.
 
  The following equations of state (EOS) are implemented as a class of generic cubics:
