@@ -18,6 +18,9 @@ DocTestSetup = quote
     conditions = (p = p, T = T, z = z)
     # Perform a flash to get the vapor fraction
     V, K, report = flash_2ph(eos, conditions, extra_out = true, method = m)
+
+    S = flash_storage(eos, conditions, method = m)
+    @allocated V = flash_2ph!(S, K, eos, conditions, method = m)
 end
 ```
 
