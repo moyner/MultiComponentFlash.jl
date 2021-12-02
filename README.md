@@ -51,25 +51,25 @@ eos = GenericCubicEOS(mixture, PengRobinson())
 # Define conditions to flash at
 p = 5e6        # 5 000 000 Pa, or 50 bar
 T = 303.15     # 30 °C = 303.15 °K
-z = [0.4, 0.6] # 1 mole methane per 9 moles of decane
+z = [0.4, 0.6] # 4 mole methane per 6 moles of decane
 conditions = (p = p, T = T, z = z)
 # Perform a flash to get the vapor fraction
 V = flash_2ph(eos, conditions)
 ```
 
-```
+```julia
 julia> V
 0.20785284212697513
 ```
 ## Get K-values and calculate liquid and vapor mole fractions
 If we also want to know how the components are partitioned in the two phases, we can turn on the `extra_out` flag.
-```
+```julia
 V, K, = flash_2ph(eos, conditions, extra_out = true)
 x = liquid_mole_fraction.(z, K, V)
 y = vapor_mole_fraction.(z, K, V)
 ```
 
-```
+```julia
 julia> x
 2-element Vector{Float64}:
  0.24266084237653415
