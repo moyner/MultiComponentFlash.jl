@@ -390,7 +390,7 @@ function mixture_fugacities!(f, eos, cond, forces = force_coefficients(eos, cond
 end
 
 """
-Specialization of solve_rotos for cubics
+Specialization of solve_roots for cubics
 """
 solve_roots(::AbstractCubicEOS, P) = solve_cubic_positive_roots(P)
 
