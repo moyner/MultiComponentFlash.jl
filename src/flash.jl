@@ -14,32 +14,31 @@ See also: [`flash_2ph!`](@ref), [`NewtonFlash`](@ref) [`SSINewtonFlash`](@ref)
 struct SSIFlash <: AbstractFlash end
 
 """
+    NewtonFlash([dMax = 0.2])
+
 Flash using Newton's method for zero solve.
 
 Only conditionally convergent, but has better convergence rate than SSI.
 
+# Arguments
+- `dMax`: dampening factor for the newton iteration
+
 See also: [`flash_2ph!`](@ref), [`SSIFlash`](@ref) [`SSINewtonFlash`](@ref)
 """
-struct NewtonFlash <: AbstractNewtonFlash
-    dMax
-    function NewtonFlash(; dMax = 0.2)
-        new(dMax)
-    end
+@Base.kwdef struct NewtonFlash <: AbstractNewtonFlash
+    dMax::Float64 = 0.2
 end
 
-
 """
-    SSINewtonFlash([swap_iter = 5])
+    SSINewtonFlash([swap_iter = 5,dMax = 0.2])
 
 Perform a number of SSI iterations, followed by Newton until convergence.
 
 See also: [`flash_2ph!`](@ref), [`SSIFlash`](@ref) [`NewtonFlash`](@ref)
 """
-struct SSINewtonFlash <: AbstractNewtonFlash
-    swap_iter
-    function SSINewtonFlash(;swap_iter = 5)
-        return new(swap_iter)
-    end
+@Base.kwdef struct SSINewtonFlash <: AbstractNewtonFlash
+    swap_iter::Int = 5
+    dMax::Float64 = 0.2
 end
 
 """
@@ -165,10 +164,10 @@ Pre-allocate storage for `flash_2ph!`.
 See also: [`flash_2ph!`](@ref) [`set_partials`](@ref)
 """
 function flash_storage(eos, cond = (p = 10e5, T = 273.15, z = zeros(number_of_components(eos)));  method = SSIFlash(), kwarg...)
-    out = Dict()
+    out = Dict{Symbol,Any}()
     d = flash_storage_internal!(out, eos, cond, method; kwarg...)
     # Convert to named tuple
-    return (; (key => value for (key, value) in d)...)::NamedTuple
+    return NamedTuple(pairs(d))
 end
 
 function flash_storage_internal!(out, eos, cond, method; inc_jac = isa(method, AbstractNewtonFlash), static_size = false, kwarg...)
@@ -226,8 +225,6 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     np = length(out[:r])
     external_partials = n + 2 # p, T, z_1, ... z_n
     secondary_ad(ix) = get_ad(0.0, external_partials, :InverseFlash, ix)
-
-    
     p_ad = secondary_ad(1)
     T_ad = secondary_ad(2)
     T_cond = typeof(p_ad)
@@ -271,8 +268,8 @@ end
 
 function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
     # Initialize conditions for vapor and liquid phases based on K-values
-    @. x = liquid_mole_fraction(z, K, V)
-    @. y = vapor_mole_fraction(x, K)
+    x = liquid_mole_fraction!(x, z, K, V)
+    y = vapor_mole_fraction!(y, x, K)
 
     liquid = (p = p, T = T, z = x)
     vapor = (p = p, T = T, z = y)
@@ -280,7 +277,7 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
     Z_l, s_l = prep(eos, liquid, forces)
     Z_v, s_v = prep(eos, vapor, forces)
 
-    ϵ = 0.0
+    ϵ = zero(F)
     @inbounds for c in eachindex(K)
         f_l = component_fugacity(eos, liquid, c, Z_l, forces, s_l)
         f_v = component_fugacity(eos, vapor, c, Z_v, forces, s_v)
@@ -292,15 +289,15 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
     return (V, ϵ)::Tuple{F, F}
 end
 
-cap_z(z) = min(max(z, MINIMUM_COMPOSITION), 1.0)
-cap_unit(v) = min(max(v, 0.0), 1.0)
+cap_z(z) = min(max(z, MINIMUM_COMPOSITION), one(z))
+cap_unit(v) = min(max(v, zero(z)), one(z))
 cap_VL(v) = min(max(v, MINIMUM_COMPOSITION), 1 - MINIMUM_COMPOSITION)
 
 function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iteration)
     x, y = storage.x, storage.y
     z = cond.z
-    @. x = liquid_mole_fraction(z, K, V)
-    @. y = vapor_mole_fraction(x, K)
+    x = liquid_mole_fraction!(x, z, K, V)
+    y = vapor_mole_fraction!(y, x, K)
     # Newton part
     Δ = update_and_solve!(storage, eos, cond, forces, x, y, V)
     newton_dampen!(type.dMax, Δ)
@@ -309,7 +306,7 @@ function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iter
 end
 
 function update_newton_from_increment!(K, x, y, V, Δ)
-    ϵ = 0.0
+    ϵ = zero(eltype(K))
     n = length(x)
     @inbounds for i in 1:n
         x_n = cap_z(x[i] - Δ[i])
@@ -355,17 +352,17 @@ end
 
 function update_and_solve!(storage, eos, cond, forces, x, y, V)
     J, r = update_primary_jacobian!(storage, eos, cond, forces, x, y, V)
-    return solve_jacobian!(J, r, eos)
+    return solve_jacobian!(J, r)
 end
 
-function solve_jacobian!(J, r, eos)
+function solve_jacobian!(J, r)
     # Factorize in-place, overwriting Jacobian with its factorization
     F = lu!(J)
     ldiv!(F, r)
 end
 
-function solve_jacobian!(J, r, ::GenericCubicEOS{T, R, N}) where {T, R, N}
-    M = 2*N+1
+function solve_jacobian!(J::MMatrix, r)
+    M = length(r)
     tmp = SMatrix{M, M}(J)\SVector{M}(r)
     r .= tmp
 end
@@ -390,7 +387,7 @@ end
 
 function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V, iteration)
     if iteration >= type.swap_iter
-        flash_update!(K, storage, NewtonFlash(), eos, cond, forces, V, iteration)
+        flash_update!(K, storage, NewtonFlash(type.dMax), eos, cond, forces, V, iteration)
     else
         flash_update!(K, storage, SSIFlash(), eos, cond, forces, V, iteration)
     end
@@ -465,3 +462,11 @@ end
 @inline vapor_mole_fraction(z, K, V) = K*liquid_mole_fraction(z, K, V)
 "Compute vapor mole fraction from liquid mole fraction and K-value"
 @inline vapor_mole_fraction(x, K) = x*K
+
+liquid_mole_fraction!(x, z, K, V) = begin x .= z ./ (1 .- V .+ V .* K);x end
+vapor_mole_fraction!(y, x, K) = begin y .= x .* K;y end
+function vapor_mole_fraction!(y,z, K, V) 
+    x = y
+    liquid_mole_fraction!(x, z, K, V)
+    vapor_mole_fraction!(y, x, K)
+end
