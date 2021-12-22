@@ -48,26 +48,37 @@ function set_partials(v, storage, eos, c, index)
     M = storage.J_inv
     p, z, T = c.p, c.z, c.T
     buf = storage.buf_inv
+    return set_partials(v, M, buf, p, T, z, index)
+end
+
+function set_partials(v::∂T, M, buf, p, T, z, index) where ∂T
+    # Zero out buffer just in case
     @. buf = 0
-    is_dual(x) = typeof(x)<:ForwardDiff.Dual
-    if is_dual(p)
-        @inbounds @. buf -= M[index, 1].*p.partials
-    end
-    if is_dual(T)
-        @inbounds @. buf -= M[index, 2].*T.partials
-    end
-    if eltype(z)<:ForwardDiff.Dual
-        for (ind, zi) = enumerate(z)
-            @inbounds ∂z = -M[index, ind+2]
-            for i in eachindex(zi.partials)
-                @inbounds buf[i] += ∂z*zi.partials[i]
-            end
+    # ∂v/∂p
+    set_partials_scalar!(buf, p, M, index, 1)
+    # ∂v/∂T
+    set_partials_scalar!(buf, T, M, index, 2)
+    # ∂v/∂z_i for all i
+    set_partials_vector!(buf, z, M, index, 2)
+    P = typeof(v.partials)
+    return ∂T(v.value, P(Tuple(buf)))
+end
+
+set_partials_scalar!(buf, X::AbstractFloat, M, index, pos) = nothing
+
+function set_partials_scalar!(buf, X::ForwardDiff.Dual{T,V,N}, M, index, pos) where {T, V, N}
+    @inbounds @. buf -= M[index, pos]*X.partials
+end
+
+set_partials_vector!(buf, z, M, index, offset) = nothing
+
+function set_partials_vector!(buf, z::AbstractVector{ForwardDiff.Dual{T,V,N}}, M, index, offset) where {T, V, N}
+    for (ind, zi) = enumerate(z)
+        @inbounds ∂z = -M[index, ind+offset]
+        for i in eachindex(zi.partials)
+            @inbounds buf[i] += ∂z*zi.partials[i]
         end
     end
-    ∂T = typeof(v)
-    P = typeof(v.partials)
-
-    return ∂T(v.value, P(Tuple(buf)))
 end
 
 """
