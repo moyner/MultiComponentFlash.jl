@@ -1,4 +1,4 @@
-
+import ForwardDiff: Dual, Partials, value
 """
     inverse_flash_update!(storage, eos, c, V)
 
@@ -51,17 +51,18 @@ function set_partials(v, storage, eos, c, index)
     return set_partials(v, M, buf, p, T, z, index)
 end
 
-function set_partials(v::∂T, M, buf, p, T, z, index) where ∂T
+function set_partials(v::Dual{T,V,N}, M, buf, p, temp, z, index) where {T,V,N}
     # Zero out buffer just in case
     @. buf = 0
     # ∂v/∂p
     set_partials_scalar!(buf, p, M, index, 1)
     # ∂v/∂T
-    set_partials_scalar!(buf, T, M, index, 2)
+    set_partials_scalar!(buf, temp, M, index, 2)
     # ∂v/∂z_i for all i
     set_partials_vector!(buf, z, M, index, 2)
-    P = typeof(v.partials)
-    return ∂T(v.value, P(Tuple(buf)))
+    ∂ = Partials{N, V}(Tuple(buf))
+    val = value(v)
+    return Dual{T, V, N}(val, ∂)
 end
 
 set_partials_scalar!(buf, X::AbstractFloat, M, index, pos) = nothing

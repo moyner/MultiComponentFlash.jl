@@ -242,7 +242,12 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     end
     cond_ad = (p = p_ad, T = T_ad, z = z_ad)
     if !isnothing(npartials)
-        out[:buf_inv] = zeros(npartials)
+        if static_size
+            buf = @MVector zeros(npartials)
+        else
+            buf = zeros(npartials)
+        end
+        out[:buf_inv] = buf
     end
     out[:AD_cond] = cond_ad
     out[:forces_secondary] = force_coefficients(eos, cond_ad, static_size = static_size)
