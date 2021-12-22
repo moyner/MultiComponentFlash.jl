@@ -7,15 +7,19 @@ Update internal matrix of partial derivatives for a converged flash result.
 function inverse_flash_update!(storage, eos, c, V)
     x, y = storage.x, storage.y
     J_p, = update_primary_jacobian!(storage, eos, c, storage.forces, x, y, V)
-    J_s, = update_secondary_jacobian!(storage, eos, c, x, y, V)
-    if isa(J_p, MMatrix)
-        tmp = SMatrix(J_p)\SMatrix(J_s)
-        J_s .= tmp
-    else
-        F = lu!(J_p)
-        ldiv!(F, J_s)    
-    end
+    J_s, = update_secondary_jacobian!(storage, eos, c, storage.forces_secondary, x, y, V)
+    invert_sp!(J_s, J_p)
     return J_s
+end
+
+function invert_sp!(J_s, J_p)
+    F = lu!(J_p)
+    ldiv!(F, J_s)
+end
+
+function invert_sp!(J_s::MMatrix, J_p::MMatrix)
+    tmp = SMatrix(J_p)\SMatrix(J_s)
+    J_s .= tmp
 end
 
 

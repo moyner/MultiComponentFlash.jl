@@ -240,10 +240,12 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     for i = 1:n
         z_ad[i] = secondary_ad(i+2)
     end
-    out[:AD_cond] = (p = p_ad, T = T_ad, z = z_ad)
+    cond_ad = (p = p_ad, T = T_ad, z = z_ad)
     if !isnothing(npartials)
         out[:buf_inv] = zeros(npartials)
     end
+    out[:AD_cond] = cond_ad
+    out[:forces_secondary] = force_coefficients(eos, cond_ad, static_size = static_size)
 end
 
 function get_ad(v::T, npartials, tag, diag_pos = nothing) where {T<:Real}
@@ -341,11 +343,11 @@ function update_primary_jacobian!(storage, eos, cond, forces, x, y, V)
     return (J, r)
 end
 
-function update_secondary_jacobian!(storage, eos, c, x, y, V)
+function update_secondary_jacobian!(storage, eos, c, forces, x, y, V)
     c_ad = storage.AD_cond
     J = storage.J_inv
     p, T, z = get_inverse_ad_values(c_ad, c)
-    forces = force_coefficients(eos, (p = p, T = T, z = z))
+    forces = force_coefficients!(forces, eos, (p = p, T = T, z = z))
     update_flash_jacobian!(J, nothing, eos, p, T, z, x, y, V, forces)
     return (J, storage.r)
 end
