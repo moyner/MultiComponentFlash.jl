@@ -42,8 +42,8 @@ struct FlashedMixture2Phase{T, A}
     state::PhaseState2Phase
     K::A # Equilibrium constants
     V::T # Vapor mole fraction
-    liquid::FlashedPhase
-    vapor::FlashedPhase
+    liquid::FlashedPhase{T}
+    vapor::FlashedPhase{T}
     function FlashedMixture2Phase(state::PhaseState2Phase, K, V, liquid, vapor)
         new{typeof(V), typeof(K)}(state, K, V, liquid, vapor)
     end
