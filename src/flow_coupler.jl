@@ -88,7 +88,8 @@ The value in the absent phase will be zero.
     else
         S_v = zero(T)
     end
-    return (S_l = 1 - S_v, S_v = S_v)
+    S_l = 1 - S_v
+    return (S_l = S_l::T, S_v = S_v::T)
 end
 
 "Compute molar volume of a flashed phase"
@@ -128,7 +129,7 @@ The value in the absent phase will be zero.
     else
         v = zero(T)
     end
-    return (ρ_l = l, ρ_v = v)
+    return (ρ_l = l::T, ρ_v = v::T)
 end
 
 """
@@ -147,12 +148,12 @@ division for mobilities etc. safe.
     if liquid_phase_present(state)
         l = lbc_viscosity(eos, p, temperature, f.liquid)
     else
-        l = eps(T)
+        l = convert(T, eps(T))
     end
     if vapor_phase_present(state)
         v = lbc_viscosity(eos, p, temperature, f.vapor)
     else
-        v = eps(T)
+        v = convert(T, eps(T))
     end
-    return (μ_l = l, μ_v = v)
+    return (μ_l = l::T, μ_v = v::T)
 end
