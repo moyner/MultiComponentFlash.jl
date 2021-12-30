@@ -99,7 +99,7 @@ molar_volume(eos, p, T, ph::FlashedPhase) = molar_volume(IDEAL_GAS_CONSTANT, p, 
 function mass_density(eos, p, T, ph::FlashedPhase{V}) where V
     props = eos.mixture.properties
     z = ph.mole_fractions
-    t = 0.0
+    t = zero(V)
     @inbounds for (i, p) in enumerate(props)
         t += z[i]*p.mw
     end
