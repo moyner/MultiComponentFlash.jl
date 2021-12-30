@@ -1,4 +1,4 @@
-export PhaseState2Phase, liquid_phase_present, vapor_phase_present, two_phases_present
+export PhaseState2Phase, liquid_phase_present, vapor_phase_present, two_phases_present, phase_data
 
 @enum PhaseState2Phase two_phase_lv single_phase_l single_phase_v unknown_phase_state_lv
 
@@ -64,6 +64,14 @@ function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64)
     vapor = FlashedPhase(n, T)
 
     return FlashedMixture2Phase(unknown_phase_state_lv, K, V, liquid, vapor)
+end
+
+function phase_data(mix::FlashedMixture2Phase, phase)
+    if phase == :liquid
+        return mix.liquid
+    else
+        return mix.vapor
+    end
 end
 
 """
