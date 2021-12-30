@@ -38,16 +38,14 @@ function FlashedPhase(n::Integer, T::DataType = Float64)
 end
 
 "Type that holds liquid and vapor phase states together with their state"
-struct FlashedMixture2Phase{T, A<:AbstractVector{T}}
+struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
     state::PhaseState2Phase
-    K::A # Equilibrium constants
+    K::E # Equilibrium constants
     V::T # Vapor mole fraction
     liquid::FlashedPhase{T, A}
     vapor::FlashedPhase{T, A}
-    function FlashedMixture2Phase(state::PhaseState2Phase, K, V, liquid, vapor)
-        Kt = typeof(K)
-        Vt = typeof(V)
-        new{Vt, Kt}(state, K, V, liquid, vapor)
+    function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t, liquid, vapor; vec_type = Vector{V_t}) where {V_t, K_t}        
+        new{V_t, vec_type, K_t}(state, K, V, liquid, vapor)
     end
 end
 
@@ -57,11 +55,11 @@ function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V)
     return FlashedMixture2Phase(state, K, V, liquid, vapor)
 end
 
-function FlashedMixture2Phase(eos::AbstractEOS, T = Float64)
+function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64)
     n = number_of_components(eos)
     V = zero(T)
     # K values are always doubles
-    K = zeros(T, n)
+    K = zeros(T_num, n)
     liquid = FlashedPhase(n, T)
     vapor = FlashedPhase(n, T)
 
@@ -148,12 +146,12 @@ division for mobilities etc. safe.
     state = f.state
     # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute viscosities. Has flash been called?."
     if liquid_phase_present(state)
-        l = lbc_viscosity(eos, p, temperature, f.liquid)
+        l = lbc_viscosity(eos, p, temperature, f.liquid)::T
     else
         l = convert(T, eps(T))
     end
     if vapor_phase_present(state)
-        v = lbc_viscosity(eos, p, temperature, f.vapor)
+        v = lbc_viscosity(eos, p, temperature, f.vapor)::T
     else
         v = convert(T, eps(T))
     end

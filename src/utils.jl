@@ -23,7 +23,7 @@ end
 
 Compute the viscosity of a mixture using the [Lohrenz-Bray-Clark](https://doi.org/10.2118/915-PA) correlation.
 """
-function lbc_viscosity(eos, p, temperature, ph; coeff = (0.1023, 0.023364, 0.058533, -0.040758, 0.0093324), shift = -1e-4)
+function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023, 0.023364, 0.058533, -0.040758, 0.0093324), shift = -1e-4) where T
     molfactor = 1000;
     Rankine = 5/9
     psia = 6.894757293168360e+03
@@ -82,7 +82,6 @@ function lbc_viscosity(eos, p, temperature, ph; coeff = (0.1023, 0.023364, 0.058
         corr += c*rhor^(i-1)
     end
     mu = mu_atm + (corr^4 + shift)/e_mix
-    T = Base.promote_type(typeof(p), typeof(temperature))
     return mu::T
 end
 
