@@ -23,11 +23,11 @@ function phase_is_present(label, phase_state::PhaseState2Phase)
 end
 
 "Type that holds values for a flashed phase (mole fractions + compressibility factor)"
-struct FlashedPhase{T}
-    mole_fractions::AbstractArray{T}
+struct FlashedPhase{T, A<:AbstractVector{T}}
+    mole_fractions::A
     Z::T
-    function FlashedPhase(mole_fractions::AbstractArray, Z::Real)
-        new{typeof(Z)}(mole_fractions, Z)
+    function FlashedPhase(mole_fractions::AbstractVector, Z::Real)
+        new{typeof(Z), typeof(mole_fractions)}(mole_fractions, Z)
     end
 end
 
@@ -38,14 +38,16 @@ function FlashedPhase(n::Integer, T::DataType = Float64)
 end
 
 "Type that holds liquid and vapor phase states together with their state"
-struct FlashedMixture2Phase{T, A}
+struct FlashedMixture2Phase{T, A<:AbstractVector{T}}
     state::PhaseState2Phase
     K::A # Equilibrium constants
     V::T # Vapor mole fraction
-    liquid::FlashedPhase{T}
-    vapor::FlashedPhase{T}
+    liquid::FlashedPhase{T, A}
+    vapor::FlashedPhase{T, A}
     function FlashedMixture2Phase(state::PhaseState2Phase, K, V, liquid, vapor)
-        new{typeof(V), typeof(K)}(state, K, V, liquid, vapor)
+        Kt = typeof(K)
+        Vt = typeof(V)
+        new{Vt, Kt}(state, K, V, liquid, vapor)
     end
 end
 
@@ -59,7 +61,7 @@ function FlashedMixture2Phase(eos::AbstractEOS, T = Float64)
     n = number_of_components(eos)
     V = zero(T)
     # K values are always doubles
-    K = zeros(Float64, n)
+    K = zeros(T, n)
     liquid = FlashedPhase(n, T)
     vapor = FlashedPhase(n, T)
 
@@ -77,7 +79,7 @@ The value in the absent phase will be zero.
 """
 @inline function phase_saturations(f::FlashedMixture2Phase{T}) where T
     state = f.state
-    @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute saturations. Has flash been called?."
+    # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute saturations. Has flash been called?."
     if state == two_phase_lv
         Z_l = f.liquid.Z
         Z_v = f.vapor.Z
@@ -96,15 +98,15 @@ end
 molar_volume(eos, p, T, ph::FlashedPhase) = molar_volume(IDEAL_GAS_CONSTANT, p, T, ph.Z)
 
 "Compute mass density of a flashed phase"
-function mass_density(eos, p, T, ph::FlashedPhase)
+function mass_density(eos, p, T, ph::FlashedPhase{V}) where V
     props = eos.mixture.properties
     z = ph.mole_fractions
     t = 0.0
-    for (i, p) in enumerate(props)
+    @inbounds for (i, p) in enumerate(props)
         t += z[i]*p.mw
     end
     ρ = t/molar_volume(eos, p, T, ph)
-    return ρ
+    return convert(V, ρ)
 end
 
 """
@@ -118,14 +120,14 @@ The value in the absent phase will be zero.
 """
 @inline function mass_densities(eos, p, temperature, f::FlashedMixture2Phase{T}) where T
     state = f.state
-    @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute densities. Has flash been called?."
+    # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute densities. Has flash been called?."
     if liquid_phase_present(state)
-        l = mass_density(eos, p, temperature, f.liquid)
+        l = mass_density(eos, p, temperature, f.liquid)::T
     else
         l = zero(T)
     end
     if vapor_phase_present(state)
-        v = mass_density(eos, p, temperature, f.vapor)
+        v = mass_density(eos, p, temperature, f.vapor)::T
     else
         v = zero(T)
     end
@@ -144,7 +146,7 @@ division for mobilities etc. safe.
 """
 @inline function lbc_viscosities(eos, p, temperature, f::FlashedMixture2Phase{T}) where T
     state = f.state
-    @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute viscosities. Has flash been called?."
+    # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute viscosities. Has flash been called?."
     if liquid_phase_present(state)
         l = lbc_viscosity(eos, p, temperature, f.liquid)
     else
