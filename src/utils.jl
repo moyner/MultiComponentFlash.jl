@@ -29,29 +29,27 @@ end
 Compute the viscosity of a mixture using the [Lohrenz-Bray-Clark](https://doi.org/10.2118/915-PA) correlation.
 """
 function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023, 0.023364, 0.058533, -0.040758, 0.0093324), shift = -1e-4) where T
-    
-    rho = 1/molar_volume(eos, p, temperature, ph)
     z = ph.mole_fractions
-    
     properties = eos.mixture.properties
     mw_mix, P_pc, T_pc, V_pc = pseudo_critical_properties(properties, z)
     mu_atm = atmospheric_mu_estimate(properties, z, temperature)
     e_mix = mixture_viscosity_parameter(mw_mix, T_pc, P_pc)
-    rhor = V_pc*rho
     # From Jossi et al
     # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093724, 1e-4]
     # From LBC paper
     # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093324, -1e-4]
+    # Compute reduced density
+    V = molar_volume(eos, p, temperature, ph)
+    rho_r = V_pc/V
     corr = zero(T)
     for (i, c) in enumerate(coeff)
-        corr += c*rhor^(i-1)
+        corr += c*rho_r^(i-1)
     end
     mu = mu_atm + (corr^4 + shift)/e_mix
     return mu::T
 end
 
-function atmospheric_mu_estimate(props, z, temperature)
-    T = eltype(z)
+function atmospheric_mu_estimate(props, z::V, temperature) where V<:AbstractVector{T} where T
     a = zero(T)
     b = zero(T)
     @inbounds for (prop, zi) in zip(props, z)
@@ -74,12 +72,12 @@ function atmospheric_mu_estimate(props, z, temperature)
 end
 
 @inline function mixture_viscosity_parameter(molar_mass, T_c, p_c)
-    mwi = sqrt(MOL_TO_KMOL*molar_mass)
-    return CENTI_POISE_TO_PASCAL_SECOND*(5.4402*(T_c*KELVIN_TO_RANKINE)^(1/6))/(mwi*(p_c*PASCAL_TO_PSI)^(2/3))
+    A = 5.4402*(T_c*KELVIN_TO_RANKINE)^(1/6)
+    B = sqrt(MOL_TO_KMOL*molar_mass)*(p_c*PASCAL_TO_PSI)^(2/3)
+    return CENTI_POISE_TO_PASCAL_SECOND*A/B
 end
 
-function pseudo_critical_properties(props, z)
-    T = eltype(z)
+function pseudo_critical_properties(props, z::V) where V<:AbstractVector{T} where T
     P_pc = zero(T)
     T_pc = zero(T)
     Vc = zero(T)
