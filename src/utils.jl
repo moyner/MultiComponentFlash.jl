@@ -24,7 +24,7 @@ end
 Compute the viscosity of a mixture using the [Lohrenz-Bray-Clark](https://doi.org/10.2118/915-PA) correlation.
 """
 function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023, 0.023364, 0.058533, -0.040758, 0.0093324), shift = -1e-4) where T
-    molfactor = 1000;
+    molfactor = 1000
     Rankine = 5/9
     psia = 6.894757293168360e+03
     
@@ -32,52 +32,44 @@ function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023
     z = ph.mole_fractions
     
     properties = eos.mixture.properties
-    # for i = 1:ncomp
-    P_pc = 0.0 
-    T_pc = 0.0 
-    Vc = 0.0 
-    mwc = 0.0
+    P_pc = zero(T)
+    T_pc = zero(T)
+    Vc = zero(T)
+    mwc = zero(T)
 
-    a = 0.0
-    b = 0.0
-    @inbounds for i in eachindex(properties)
-        prop = properties[i]
-        zi = z[i]
-        mw = prop.mw
-        T_c = prop.T_c
-        p_c = prop.p_c
+    a = zero(T)
+    b = zero(T)
+    @inbounds for (prop, zi) in zip(properties, z)
+        mw = molfactor*prop.mw
+        T_c = prop.T_c/Rankine
+        p_c = prop.p_c/psia
         V_c = prop.V_c
-
-        mwi = sqrt(molfactor*mw)
-
+        # Accumulate weighted properties
         mwc += zi*mw
         P_pc += zi*p_c
         T_pc += zi*T_c
         Vc += zi*V_c
-        # Scale to right units
+        # Add contributions to atmospheric mu
         tr = temperature/T_c
-        Tc = T_c/Rankine
-        Pc = p_c/psia
-
-        e_i = (5.4402*Tc^(1/6))/(mwi*Pc^(2/3)*(1e-3))
-        
+        mwi = sqrt(mw)
+        e_i = (5.4402*T_c^(1/6))/(mwi*p_c^(2/3)*(1e-3))
         large = tr > 1.5
         if large
             mu_i = (17.78e-5*(4.58*tr - 1.67)^0.625)/e_i
         else
             mu_i = 34e-5*tr^(0.94)/e_i
         end
-        a = a + zi*mu_i*mwi
-        b = b + zi*mwi
+        a += zi*mu_i*mwi
+        b += zi*mwi
     end
     mu_atm = a/b
-    e_mix = 5.4402*(T_pc/Rankine)^(1/6)/((molfactor*mwc)^(1/2)*(P_pc/psia)^(2/3)*(1e-3))
+    e_mix = 5.4402*(T_pc)^(1/6)/((mwc)^(1/2)*(P_pc)^(2/3)*(1e-3))
     rhor = Vc*rho
     # From Jossi et al
     # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093724, 1e-4]
     # From LBC paper
     # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093324, -1e-4]
-    corr = 0.0
+    corr = zero(T)
     for (i, c) in enumerate(coeff)
         corr += c*rhor^(i-1)
     end
@@ -85,6 +77,6 @@ function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023
     return mu::T
 end
 
-function molar_volume(R, p, T, Z)
+@inline function molar_volume(R, p, T, Z)
     return R*T*Z/p
 end
