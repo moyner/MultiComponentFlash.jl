@@ -15,7 +15,7 @@ function single_phase_label(mixture, cond)
     z = cond.z
     T_c = 0.0
     V_c = 0.0
-    for (i, m) in enumerate(mixture.properties)
+    @inbounds for (i, m) in enumerate(mixture.properties)
         V = m.V_c*z[i]
         T_c += m.T_c*V
         V_c += V

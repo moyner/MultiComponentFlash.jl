@@ -103,7 +103,7 @@ function set_partials_phase_mole_fractions!(xy, storage, eos, ∂c, phase = :liq
     else
         offset = n
     end
-    for i = 1:n
+    @inbounds for i = 1:n
         xy[i] = set_partials(xy[i], storage, eos, ∂c, offset + i)
     end
     return xy

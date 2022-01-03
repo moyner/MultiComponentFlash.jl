@@ -427,10 +427,10 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
         f_v = component_fugacity(eos, vapor, c, Z_v, forces, s_v)
         Δf = f_l - f_v
         if has_r
-            r[c+n] = Δf.value
+            @inbounds r[c+n] = Δf.value
         end
         for i = 1:np
-            J[c+n, i] = Δf.partials[i]
+            @inbounds J[c+n, i] = Δf.partials[i]
         end
     end
     # x_i*(1-V) - V*y_i - z_i = 0 ∀ i
@@ -443,7 +443,7 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
         Σxy += (xc - yc)
         M = L*xc + V*yc - z[c]
         if has_r
-            r[c] = M.value
+            @inbounds r[c] = M.value
         end
         @inbounds for i = 1:np
             J[c, i] = ∂(M, i)
@@ -461,7 +461,7 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     end
 end
 
-∂(D, i) = D.partials[i]
+Base.@propagate_inbounds ∂(D, i) = D.partials[i]
 
 "Compute liquid mole fraction from overall mole fraction, K-value and V vapor fraction"
 @inline liquid_mole_fraction(z, K, V) = z/(1 - V + V*K)

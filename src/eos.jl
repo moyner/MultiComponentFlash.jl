@@ -151,7 +151,7 @@ end
 binary_interaction(eos::AbstractEOS, i, j) = binary_interaction(eos.mixture, i, j)
 binary_interaction(mixture::MultiComponentMixture{R}, i, j) where {R} = binary_interaction(mixture.binary_interaction, i, j)::R
 binary_interaction(::Nothing, i, j) = 0.0
-binary_interaction(B::AbstractMatrix, i, j) = B[i, j]
+Base.@propagate_inbounds binary_interaction(B::AbstractMatrix, i, j) = B[i, j]
 
 """
     mixture_compressibility_factor(eos, cond, [forces, scalars])
@@ -245,7 +245,7 @@ end
 Update linear part of attractive term
 """
 function update_attractive_linear!(A, eos::GenericCubicEOS, cond)
-    for i in eachindex(A)
+    @inbounds for i in eachindex(A)
         A[i] = A_i(eos, cond, i)
     end
 end
@@ -262,10 +262,11 @@ Update quadratic part of attractive term
 """
 function update_attractive_quadratic!(A_ij, A_i, eos::AbstractCubicEOS, cond)
     N = number_of_components(eos)
+    T = eltype(A_i)
     for i = 1:N
-        for j = i:N
-            a = sqrt(A_i[i]*A_i[j])*(1.0 - binary_interaction(eos, i, j))
-            a::eltype(A_i)
+        @inbounds for j = i:N
+            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j))
+            a::T
             A_ij[i, j] = a
             A_ij[j, i] = a
         end
@@ -273,7 +274,7 @@ function update_attractive_quadratic!(A_ij, A_i, eos::AbstractCubicEOS, cond)
 end
 
 function update_repulsive!(B, eos::AbstractCubicEOS, cond)
-    for i in eachindex(B)
+    @inbounds for i in eachindex(B)
         B[i] = B_i(eos, cond, i)
     end
 end
@@ -349,7 +350,7 @@ function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)
     Δm = m1 - m2
     T = promote_type(eltype(x), eltype(A_mat))
     A_s = zero(T)
-    for j in eachindex(x)
+    @inbounds for j in eachindex(x)
         A_s += A_mat[i, j]*x[j]
     end
     α = -log(Z - B) + (B_i[i]/B)*(Z - 1)
@@ -363,7 +364,7 @@ end
 
 Get fugacity of component `i` in a phase with compressibility `Z` and EOS constants `scalars`.
 """
-function component_fugacity(eos::GenericCubicEOS, cond, i, Z, forces, scalars)
+Base.@propagate_inbounds function component_fugacity(eos::GenericCubicEOS, cond, i, Z, forces, scalars)
     lnψ_i = component_fugacity_coefficient(eos, cond, i, Z, forces, scalars)
     tmp = cond.z[i]*cond.p*exp(lnψ_i)
     return tmp
