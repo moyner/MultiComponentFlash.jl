@@ -123,7 +123,9 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
         i = 0
     else
         i = 1
-        V = solve_rachford_rice(K, z, V)
+        if isnan(V)
+            V = solve_rachford_rice(K, z, V)
+        end
         while !converged
             V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i)
             converged = ϵ ≤ tolerance
