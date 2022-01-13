@@ -1,4 +1,4 @@
-
+import ForwardDiff: Dual, Partials, value
 """
     inverse_flash_update!(storage, eos, c, V)
 
@@ -7,15 +7,19 @@ Update internal matrix of partial derivatives for a converged flash result.
 function inverse_flash_update!(storage, eos, c, V)
     x, y = storage.x, storage.y
     J_p, = update_primary_jacobian!(storage, eos, c, storage.forces, x, y, V)
-    J_s, = update_secondary_jacobian!(storage, eos, c, x, y, V)
-    if isa(J_p, MMatrix)
-        tmp = SMatrix(J_p)\SMatrix(J_s)
-        J_s .= tmp
-    else
-        F = lu!(J_p)
-        ldiv!(F, J_s)    
-    end
+    J_s, = update_secondary_jacobian!(storage, eos, c, storage.forces_secondary, x, y, V)
+    invert_sp!(J_s, J_p)
     return J_s
+end
+
+function invert_sp!(J_s, J_p)
+    F = lu!(J_p)
+    ldiv!(F, J_s)
+end
+
+function invert_sp!(J_s::MMatrix, J_p::MMatrix)
+    tmp = SMatrix(J_p)\SMatrix(J_s)
+    J_s .= tmp
 end
 
 
@@ -44,26 +48,38 @@ function set_partials(v, storage, eos, c, index)
     M = storage.J_inv
     p, z, T = c.p, c.z, c.T
     buf = storage.buf_inv
+    return set_partials(v, M, buf, p, T, z, index)
+end
+
+function set_partials(v::Dual{T,V,N}, M, buf, p, temp, z, index) where {T,V,N}
+    # Zero out buffer just in case
     @. buf = 0
-    is_dual(x) = typeof(x)<:ForwardDiff.Dual
-    if is_dual(p)
-        @inbounds @. buf -= M[index, 1].*p.partials
-    end
-    if is_dual(T)
-        @inbounds @. buf -= M[index, 2].*T.partials
-    end
-    if eltype(z)<:ForwardDiff.Dual
-        for (ind, zi) = enumerate(z)
-            @inbounds ∂z = -M[index, ind+2]
-            for i in eachindex(zi.partials)
-                @inbounds buf[i] += ∂z*zi.partials[i]
-            end
+    # ∂v/∂p
+    set_partials_scalar!(buf, p, M, index, 1)
+    # ∂v/∂T
+    set_partials_scalar!(buf, temp, M, index, 2)
+    # ∂v/∂z_i for all i
+    set_partials_vector!(buf, z, M, index, 2)
+    ∂ = Partials{N, V}(Tuple(buf))
+    val = value(v)
+    return Dual{T, V, N}(val, ∂)
+end
+
+set_partials_scalar!(buf, X::AbstractFloat, M, index, pos) = nothing
+
+function set_partials_scalar!(buf, X::ForwardDiff.Dual{T,V,N}, M, index, pos) where {T, V, N}
+    @inbounds @. buf -= M[index, pos]*X.partials
+end
+
+set_partials_vector!(buf, z, M, index, offset) = nothing
+
+function set_partials_vector!(buf, z::AbstractVector{ForwardDiff.Dual{T,V,N}}, M, index, offset) where {T, V, N}
+    for (ind, zi) = enumerate(z)
+        @inbounds ∂z = -M[index, ind+offset]
+        for i in eachindex(zi.partials)
+            @inbounds buf[i] += ∂z*zi.partials[i]
         end
     end
-    ∂T = typeof(v)
-    P = typeof(v.partials)
-
-    return ∂T(v.value, P(Tuple(buf)))
 end
 
 """
@@ -87,7 +103,7 @@ function set_partials_phase_mole_fractions!(xy, storage, eos, ∂c, phase = :liq
     else
         offset = n
     end
-    for i = 1:n
+    @inbounds for i = 1:n
         xy[i] = set_partials(xy[i], storage, eos, ∂c, offset + i)
     end
     return xy

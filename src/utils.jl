@@ -1,3 +1,8 @@
+const CENTI_POISE_TO_PASCAL_SECOND = 1000.0
+const MOL_TO_KMOL = 1000.0
+const KELVIN_TO_RANKINE = 5/9
+const PASCAL_TO_PSI = 1.450377377302092e-04
+
 """
     single_phase_label(mixture, cond)
 
@@ -10,7 +15,7 @@ function single_phase_label(mixture, cond)
     z = cond.z
     T_c = 0.0
     V_c = 0.0
-    for (i, m) in enumerate(mixture.properties)
+    @inbounds for (i, m) in enumerate(mixture.properties)
         V = m.V_c*z[i]
         T_c += m.T_c*V
         V_c += V
@@ -23,70 +28,70 @@ end
 
 Compute the viscosity of a mixture using the [Lohrenz-Bray-Clark](https://doi.org/10.2118/915-PA) correlation.
 """
-function lbc_viscosity(eos, p, T, ph; coeff = (0.1023, 0.023364, 0.058533, -0.040758, 0.0093324), shift = -1e-4)
-    molfactor = 1000;
-    Rankine = 5/9
-    psia = 6.894757293168360e+03
-    
-    rho = 1/molar_volume(eos, p, T, ph)
+function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023, 0.023364, 0.058533, -0.040758, 0.0093324), shift = -1e-4) where T
     z = ph.mole_fractions
-    
     properties = eos.mixture.properties
-    # for i = 1:ncomp
-    P_pc = 0.0 
-    T_pc = 0.0 
-    Vc = 0.0 
-    mwc = 0.0
+    mw_mix, P_pc, T_pc, V_pc = pseudo_critical_properties(properties, z)
+    mu_atm = atmospheric_mu_estimate(properties, z, temperature)
+    e_mix = mixture_viscosity_parameter(mw_mix, T_pc, P_pc)
+    # From Jossi et al
+    # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093724, 1e-4]
+    # From LBC paper
+    # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093324, -1e-4]
+    # Compute reduced density
+    V = molar_volume(eos, p, temperature, ph)
+    rho_r = V_pc/V
+    corr = zero(T)
+    for (i, c) in enumerate(coeff)
+        corr += c*rho_r^(i-1)
+    end
+    mu = mu_atm + (corr^4 + shift)/e_mix
+    return mu::T
+end
 
-    a = 0.0
-    b = 0.0
-    for i in eachindex(properties)
-        prop = properties[i]
-        zi = z[i]
+function atmospheric_mu_estimate(props, z::V, temperature) where V<:AbstractVector{T} where T
+    a = zero(T)
+    b = zero(T)
+    @inbounds for (prop, zi) in zip(props, z)
         mw = prop.mw
         T_c = prop.T_c
         p_c = prop.p_c
-        V_c = prop.V_c
-
-        mwi = sqrt(molfactor*mw)
-
-        mwc += zi*mw
-        P_pc += zi*p_c
-        T_pc += zi*T_c
-        Vc += zi*V_c
-
-
-        tr = T/T_c
-        Tc = T_c/Rankine;
-        Pc = p_c/psia;
-
-        e_i = (5.4402*Tc.^(1/6))./(mwi.*Pc.^(2/3).*(1e-3));
-        
-        large = tr > 1.5;
-        if large
-            mu_i = (17.78e-5.*(4.58*tr - 1.67).^0.625)./e_i;
+        # Add contributions to atmospheric mu
+        T_r = temperature/T_c
+        e_i = mixture_viscosity_parameter(mw, T_c, p_c)
+        if T_r > 1.5
+            mu_i = 17.78e-5*(4.58*T_r - 1.67)^0.625
         else
-            mu_i = 34e-5.*tr.^(0.94)./e_i;
+            mu_i = 34e-5*T_r^(0.94)
         end
-        
-        a = a + zi.*mu_i.*mwi;
-        b = b + zi.*mwi;
+        tmp = sqrt(mw)*zi
+        a += tmp*mu_i/e_i
+        b += tmp
     end
-    mu_atm = a./b;
-    e_mix = 5.4402*(T_pc./Rankine).^(1/6)./((molfactor*mwc).^(1/2).*(P_pc./psia).^(2/3).*(1e-3));
-    rhor = Vc.*rho;
-    # From Jossi et al
-    # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093724, 1e-4];
-    # From LBC paper
-    # coeffs = [0.1023, 0.023364, 0.058533, -0.040758, 0.0093324, -1e-4];
-    corr = 0.0
-    for (i, c) in enumerate(coeff)
-        corr += c*rhor^(i-1)
-    end
-    mu = mu_atm + (corr^4 + shift)./e_mix;
-    return mu
+    return a/b
 end
 
-function molar_volume(R, p, T, Z)
+@inline function mixture_viscosity_parameter(molar_mass, T_c, p_c)
+    A = 5.4402*(T_c*KELVIN_TO_RANKINE)^(1/6)
+    B = sqrt(MOL_TO_KMOL*molar_mass)*(p_c*PASCAL_TO_PSI)^(2/3)
+    return CENTI_POISE_TO_PASCAL_SECOND*A/B
+end
+
+function pseudo_critical_properties(props, z::V) where V<:AbstractVector{T} where T
+    P_pc = zero(T)
+    T_pc = zero(T)
+    Vc = zero(T)
+    mwc = zero(T)
+    @inbounds for (prop, zi) in zip(props, z)
+        # Accumulate weighted properties
+        mwc += zi*prop.mw
+        P_pc += zi*prop.p_c
+        T_pc += zi*prop.T_c
+        Vc += zi*prop.V_c
+    end
+    return (mwc, P_pc, T_pc, Vc)
+end
+
+@inline function molar_volume(R, p, T, Z)
     return R*T*Z/p
 end
