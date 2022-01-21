@@ -117,12 +117,12 @@ function correct_volume(V, eos, p, T, ph, volume_shift)
     xy = ph.mole_fractions
     cond = (p = p, T = T, z = xy)
     c = zero(V)
-    for i in eachindex(xy)
+    @inbounds for i in eachindex(xy)
         prp = molecular_property(eos.mixture, i)
         T_ci = critical_temperature(prp)
-        P_ci = critical_temperature(prp)
+        P_ci = critical_pressure(prp)
         ω_bi = weight_bi(eos, cond, i);
-        c += xy[i]*ω_bi*R*T_ci/P_ci 
+        c += volume_shift[i]*xy[i]*ω_bi*R*T_ci/P_ci 
     end
     return V - c
 end
