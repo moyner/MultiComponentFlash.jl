@@ -37,10 +37,21 @@ dispatch modifications.
 """
 abstract type AbstractGeneralizedCubic end
 
+
+abstract type AbstractPengRobinson <: AbstractGeneralizedCubic end
+
 """
 Specializes the GenericCubicEOS to the Peng-Robinson cubic equation of state.
 """
-struct PengRobinson <: AbstractGeneralizedCubic end
+struct PengRobinson <: AbstractPengRobinson end
+
+
+"""
+Specializes the GenericCubicEOS to Peng-Robinson modified for large acentric factors
+"""
+struct PengRobinsonCorrected <: AbstractPengRobinson end
+
+
 """
 Specializes the GenericCubicEOS to the Zudkevitch-Joffe cubic equation of state.
 
@@ -111,16 +122,31 @@ function weight_ai(eos::GenericCubicEOS{T, R}, cond, i) where {T<:AbstractGenera
 end
 
 # PengRobinson specialization
-function static_coefficients(::PengRobinson)
+function static_coefficients(::AbstractPengRobinson)
     return (0.4572355, 0.0779691, 1 + sqrt(2), 1 - sqrt(2))
 end
 
-function weight_ai(eos::GenericCubicEOS{PengRobinson}, cond, i)
+function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:AbstractPengRobinson
     mix = eos.mixture
     m = molecular_property(mix, i)
     a = acentric_factor(m)
     T_r = reduced_temperature(mix, cond, i)
     return eos.ω_a*(1 + (0.37464 + 1.54226*a - 0.26992*a^2)*(1-T_r^(1/2)))^2;
+end
+
+function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
+    mix = eos.mixture
+    m = molecular_property(mix, i)
+    a = acentric_factor(m)
+    T_r = reduced_temperature(mix, cond, i)
+    if a > 0.49
+        # Use alternate expression.
+        D = (0.379642 + 1.48503*a - 0.164423*a^2 + 0.016666*a^3)
+    else
+        # Use standard expression.
+        D = (0.37464 + 1.54226*a - 0.26992*a^2)
+    end
+    return eos.ω_a*(1 + D*(1-T_r^(1/2)))^2;
 end
 
 # ZudkevitchJoffe
