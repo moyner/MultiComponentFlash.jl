@@ -61,7 +61,9 @@ struct MultiComponentMixture{R, N}
         realtype = typeof(properties[1].mw)
         n = length(properties)
         if !isnothing(A_ij)
-            @assert size(A_ij) == (n, n)
+            @assert size(A_ij) == (n, n) "Binary interaction coefficients must be a $n x $n matrix."
+            @assert issymmetric(A_ij) "Binary interaction coefficients must be symmetric if provided."
+            A_ij = Symmetric(A_ij)
         end
         new{realtype, n}(name, names, properties, A_ij)
     end
