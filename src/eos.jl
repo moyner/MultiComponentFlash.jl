@@ -14,13 +14,14 @@ definitions for the terms (they are, after all, all cubic in form). References:
  2. [Simulation of Gas Condensate Reservoir Performance  by K.H. Coats](https://doi.org/10.2118/10512-PA)
 
 """
-struct GenericCubicEOS{T, R, N} <: AbstractCubicEOS
+struct GenericCubicEOS{T, R, N, V} <: AbstractCubicEOS
     type::T
     mixture::MultiComponentMixture{R, N}
     m_1::R
     m_2::R
     ω_a::R
     ω_b::R
+    volume_shift::V
 end
 
 """
@@ -89,14 +90,17 @@ Currently supported choices for type:
     3. `RedlichKwong`
     4. `SoaveRedlichKwong`
 """
-function GenericCubicEOS(mixture, type = PengRobinson())
+function GenericCubicEOS(mixture, type = PengRobinson(); kwarg...)
     ω_a, ω_b, m_1, m_2 = static_coefficients(type)
     setup = (ω_a = ω_a, ω_b = ω_b, m_1 = m_1, m_2 = m_2, type = type)
-    return GenericCubicEOS(setup, mixture)
+    return GenericCubicEOS(setup, mixture; kwarg...)
 end
 
-function GenericCubicEOS(setup::NamedTuple, mixture)
-    return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b)
+function GenericCubicEOS(setup::NamedTuple, mixture; volume_shift = nothing)
+    if !isnothing(volume_shift)
+        @assert length(volume_shift) == number_of_components(mixture) "Volume shift must have one value per component."
+    end
+    return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b, volume_shift)
 end
 
 """

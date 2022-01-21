@@ -106,7 +106,28 @@ The value in the absent phase will be zero.
 end
 
 "Compute molar volume of a flashed phase"
-molar_volume(eos, p, T, ph::FlashedPhase) = molar_volume(IDEAL_GAS_CONSTANT, p, T, ph.Z)
+@inline function molar_volume(eos, p, T, ph::FlashedPhase) 
+    V = molar_volume(IDEAL_GAS_CONSTANT, p, T, ph.Z)
+    V = correct_volume(V, eos, p, T, ph, eos.volume_shift)
+    return V
+end
+
+function correct_volume(V, eos, p, T, ph, volume_shift)
+    R = IDEAL_GAS_CONSTANT
+    xy = ph.mole_fractions
+    cond = (p = p, T = T, z = xy)
+    c = zero(V)
+    for i in eachindex(xy)
+        prp = molecular_property(eos.mixture, i)
+        T_ci = critical_temperature(prp)
+        P_ci = critical_temperature(prp)
+        ω_bi = weight_bi(eos, cond, i);
+        c += xy[i]*ω_bi*R*T_ci/P_ci 
+    end
+    return V - c
+end
+
+@inline correct_volume(V, eos, p, T, ph, volume_shift::Nothing) = V
 
 "Compute mass density of a flashed phase"
 function mass_density(eos, p, T, ph::FlashedPhase{V}) where V
