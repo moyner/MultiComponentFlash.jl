@@ -75,7 +75,7 @@ function phase_data(mix::FlashedMixture2Phase, phase)
 end
 
 """
-    phase_saturations(flashed_mixture)
+    phase_saturations(eos, p, T, flashed_mixture)
 
 Compute phase saturations for a flashed two-phase mixture.
 
@@ -83,14 +83,19 @@ Always returns a named tuple of (S_l, S_v), even if the mixture is single-phase.
 
 The value in the absent phase will be zero.
 """
-@inline function phase_saturations(f::FlashedMixture2Phase{T}) where T
+@inline function phase_saturations(eos, p, Temp, f::FlashedMixture2Phase{T}) where T
     state = f.state
     # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute saturations. Has flash been called?."
     if state == two_phase_lv
-        Z_l = f.liquid.Z
-        Z_v = f.vapor.Z
+        # A faster definition that doesn't go via molar volume, but assumes no shifts:
+        # Z_l = f.liquid.Z
+        # Z_v = f.vapor.Z
+        # S_v = Z_v*V/(Z_l*(1-V) + Z_v*V)
         V = f.V
-        S_v = Z_v*V/(Z_l*(1-V) + Z_v*V)
+        L = one(V) - V
+        vol_v = V*molar_volume(eos, p, Temp, f.vapor)
+        vol_l = L*molar_volume(eos, p, Temp, f.liquid)
+        S_v = vol_v/(vol_v + vol_l)
     elseif state == single_phase_v
         S_v = one(T)
     else
