@@ -65,9 +65,11 @@ Two outcomes are possible:
 # Keyword arguments
 - `method = SSIFlash()`: Flash method to use. Can be `SSIFlash()`, `NewtonFlash()` or `SSINewtonFlash()`.
 - `tolerance = 1e-8`: Tolerance for the convergence criterion. Relative to ``\\|1-R_i\\|_\\infty`` where ``R_i = f_{il}/f_{iv}``
-- `maxiter = 10000`: Maximum nubmer of iterations for both stability tests and the main flash.
+- `maxiter = 20000`: Maximum nubmer of iterations for both stability tests and the main flash.
 - `verbose = false`: Emit extra information during solve.
 - `extra_out = false`: Return `(V, K, conv)` where `conv` contains iterations and oncergence status instead of just `V`.
+- `check = true`: Output warning (if not converged) and errors (if flash failed)
+- `z_min`: Minimum composition (enforced if provided)
 
 See also: [`flash_2ph!`](@ref), [`single_phase_label`](@ref)
 """
@@ -100,12 +102,14 @@ Remaining arguments documented in [`flash_2ph`](@ref).
 
 """
 function flash_2ph!(storage, K, eos, c, V = NaN;
-                                method = SSIFlash(), verbose = false, maxiter = 10000,
-                                tolerance = 1e-8, extra_out = false, update_forces = true, kwarg...)
-    z_min = MINIMUM_COMPOSITION
+                                method = SSIFlash(), verbose = false, maxiter = 20000,
+                                tolerance = 1e-8, extra_out = false, update_forces = true,
+                                check = true, z_min = MINIMUM_COMPOSITION, kwarg...)
     z = c.z
-    for i in eachindex(z)
-        @inbounds z[i] = max(z[i], z_min)
+    if !isnothing(z_min)
+        for i in eachindex(z)
+            @inbounds z[i] = max(z[i], z_min)
+        end
     end
     @assert all(isfinite, K)
     forces = storage.forces
@@ -135,8 +139,11 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
                 end
                 break
             end
-            if i == maxiter
-                @warn "Flash did not converge in $i iterations. Final ϵ = $ϵ > $tolerance = tolerance"
+            if check && i == maxiter
+                @warn "Flash did not converge in $i iterations. Final ϵ = $ϵ > $tolerance = tolerance" c
+                if !isfinite(V)
+                    error("Bad vapor fraction from flash")
+                end
             end
             i += 1
         end

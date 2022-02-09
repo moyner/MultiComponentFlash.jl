@@ -85,7 +85,8 @@ function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, insid
         ok = trivial || converged
         done = ok || iter == maxiter
         if done && !ok
-            @warn "Stability test failed to converge in $maxiter iterations." cond xy K_norm R_norm K
+            trivial = true
+            @warn "Stability test failed to converge in $maxiter iterations. Assuming stability." cond xy K_norm R_norm K
         end
     end
     stable = trivial || S <= 1 + tol_trivial

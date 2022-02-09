@@ -2,7 +2,7 @@
 module MultiComponentFlash
     using LinearAlgebra, ForwardDiff, StaticArrays, Roots
     # Types that define specific cubic equations of state
-    export SoaveRedlichKwong, RedlichKwong, PengRobinson, ZudkevitchJoffe
+    export SoaveRedlichKwong, RedlichKwong, PengRobinson, PengRobinsonCorrected, ZudkevitchJoffe
     # The generic cubic form that supports the above
     export GenericCubicEOS, number_of_components
     # Flash interfaces
