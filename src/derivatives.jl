@@ -55,11 +55,17 @@ function set_partials(v::Dual{T,V,N}, M, buf, p, temp, z, index) where {T,V,N}
     # Zero out buffer just in case
     @. buf = 0
     # ∂v/∂p
-    set_partials_scalar!(buf, p, M, index, 1)
+    if isa(p, Dual)
+        set_partials_scalar!(buf, p, M, index, 1)
+    end
     # ∂v/∂T
-    set_partials_scalar!(buf, temp, M, index, 2)
+    if isa(temp, Dual)
+        set_partials_scalar!(buf, temp, M, index, 2)
+    end
     # ∂v/∂z_i for all i
-    set_partials_vector!(buf, z, M, index, 2)
+    if eltype(z)<:Dual
+        set_partials_vector!(buf, z, M, index, 2)
+    end
     ∂ = Partials{N, V}(Tuple(buf))
     val = value(v)
     return Dual{T, V, N}(val, ∂)
