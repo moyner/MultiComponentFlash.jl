@@ -20,6 +20,22 @@ struct MolecularProperty{R}
 end
 
 """
+    MolecularProperty(; mw, p_c, T_c, V_c, acentric_factor = 0.0)
+
+Keyword constructor version of `MolecularProperty`. Except for the acentric
+factor, all properties must be specified. Explanation of inputs:
+
+mw: Molar mass (kg / mol)
+p_c: Critical pressure (Pa)
+T_c: Critical temperature (°K)
+V_c: Critical volume (m^3)
+acentric_factor (dimensionless)
+"""
+function MolecularProperty(; mw, p_c, T_c, V_c, acentric_factor = 0.0)
+    return MolecularProperty(mw, p_c, T_c, V_c, acentric_factor)
+end
+
+"""
     MolecularProperty("Name")
 
 Convenience constructor that looks up molecular properties from a table in `tabulated_properties`.

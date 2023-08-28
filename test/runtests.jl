@@ -52,3 +52,9 @@ end
 @testset "Partial derivatives" begin
     test_flash_partials()
 end
+
+@testset "Constructors" begin
+    m1 = MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224)
+    m2 = MolecularProperty(mw = 0.0440, p_c = 7.38e6, T_c = 304.1, V_c = 9.412e-5, acentric_factor = 0.224)
+    @test m1 == m2
+end
