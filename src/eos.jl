@@ -127,7 +127,7 @@ end
 
 # PengRobinson specialization
 function static_coefficients(::AbstractPengRobinson)
-    return (0.4572355, 0.0779691, 1 + sqrt(2), 1 - sqrt(2))
+    return (0.457235529, 0.077796074, 1 + sqrt(2), 1 - sqrt(2))
 end
 
 function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:AbstractPengRobinson
