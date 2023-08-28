@@ -38,8 +38,8 @@ function test_flash_pr(m)
     eos = get_test_eos(PengRobinson())
     c = test_conditions()
     V, K, rep = flash_2ph(eos, c, method = m, extra_out = true)
-    @test V ≈ 0.763309245
-    @test K ≈ [4.565628991989465, 17.725234299771724, 0.000413183604785152]
+    @test V ≈ 0.7632068334421974
+    @test K ≈ [4.553402802323027, 17.73895830809456, 0.0004031451448211194]
     @test rep.its == 6
     @test rep.converged
 end
@@ -113,51 +113,51 @@ function test_flash_partials()
 
     V = set_partials_vapor_fraction(convert(∂T, V), S, eos, ∂c)
     @testset "Liquid mole fractions" begin
-        @test x[1].value ≈ 0.134348016
-        @test x[1].partials[1] ≈ 1.225204984e-7
-        @test x[1].partials[2] ≈ -0.0020037708029
-        @test x[1].partials[3] ≈ 0.1193427625186
-        @test x[1].partials[4] ≈ -0.15685356397
+        @test x[1].value ≈ 0.1346989544117768
+        @test x[1].partials[1] ≈ 1.228287897818972e-7
+        @test x[1].partials[2] ≈ -0.0020147184844332847
+        @test x[1].partials[3] ≈ 0.1197359143763492
+        @test x[1].partials[4] ≈ -0.1572114180863043
 
-        @test x[2].value ≈ 0.021791990
-        @test x[2].partials[1] ≈ 2.1923329015033e-8
-        @test x[2].partials[2] ≈ -0.000153627235513
-        @test x[2].partials[3] ≈ -0.030587169734517
-        @test x[2].partials[4] ≈ 0.0402010686143
+        @test x[2].value ≈ 0.02177813007039174
+        @test x[2].partials[1] ≈ 2.1912542920313383e-8
+        @test x[2].partials[2] ≈ -0.0001541487185624217
+        @test x[2].partials[3] ≈ -0.03058244779079394
+        @test x[2].partials[4] ≈ 0.040154284625321765
 
-        @test x[3].value ≈ 0.84385999349
-        @test x[3].partials[1] ≈ -1.44443827440285e-7
-        @test x[3].partials[2] ≈  0.002157398038444
-        @test x[3].partials[3] ≈ -0.088755592784150
-        @test x[3].partials[4] ≈ 0.11665249535641
+        @test x[3].value ≈ 0.8435229155178313
+        @test x[3].partials[1] ≈ -1.447413327022105e-7
+        @test x[3].partials[2] ≈  0.0021688672029956967
+        @test x[3].partials[3] ≈ -0.08915346658555479
+        @test x[3].partials[4] ≈ 0.1170571334609829
     end
 
     @testset "Vapor mole fractions" begin
-        @test y[1].value ≈ 0.61338319
-        @test y[1].partials[1] ≈ -1.2431457946797125e-8
-        @test y[1].partials[2] ≈ 0.000228778411681494
-        @test y[1].partials[3] ≈ 0.5447055650444589
-        @test y[1].partials[4] ≈ -0.7159127825498286
+        @test y[1].value ≈ 0.6133385964871853
+        @test y[1].partials[1] ≈ -1.249597008210954e-8
+        @test y[1].partials[2] ≈ 0.00023074314715075357
+        @test y[1].partials[3] ≈ 0.5450354755216841
+        @test y[1].partials[4] ≈ -0.7156232151431435
 
-        @test y[2].value ≈ 0.38626813278337335
-        @test y[2].partials[1] ≈  1.2649586224979342e-8
-        @test y[2].partials[2] ≈ -0.0002510442604305922
-        @test y[2].partials[3] ≈ -0.5447013877995585
-        @test y[2].partials[4] ≈ 0.7159072923488614
+        @test y[2].value ≈ 0.38632134134487833
+        @test y[2].partials[1] ≈  1.2708851844895392e-8
+        @test y[2].partials[2] ≈ -0.00025251614754867813
+        @test y[2].partials[3] ≈ -0.5450312504283377
+        @test y[2].partials[4] ≈ 0.7156176676604193
 
-        @test y[3].value ≈ 0.00034866911404565206
-        @test y[3].partials[1] ≈ -2.1812827818225162e-10
-        @test y[3].partials[2] ≈ 2.2265848749104125e-5
-        @test y[3].partials[3] ≈ -4.177244900520176e-6
-        @test y[3].partials[4] ≈ 5.490200967341757e-6
+        @test y[3].value ≈ 0.00034006216793640385
+        @test y[3].partials[1] ≈ -2.1288176278579448e-10
+        @test y[3].partials[2] ≈ 2.177300039790918e-5
+        @test y[3].partials[3] ≈ -4.22509334621591e-6
+        @test y[3].partials[4] ≈ 5.547482724505394e-6
     end
 
     @testset "Vapor fraction" begin
-        @test V.value ≈ 0.763309246
-        @test V.partials[1] ≈ -4.072857907696467e-8
-        @test V.partials[2] ≈ 0.0006255184490819839
-        @test V.partials[3] ≈ 1.1606117844565438
-        @test V.partials[4] ≈ 1.2182584016253868
+        @test V.value ≈ 0.76320683344208
+        @test V.partials[1] ≈ -4.084076328578355e-8
+        @test V.partials[2] ≈ 0.0006287962728977443
+        @test V.partials[3] ≈ 1.160941354394336
+        @test V.partials[4] ≈ 1.2188608427571124
     end
 end
 
