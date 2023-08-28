@@ -45,7 +45,10 @@ function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023
     for (i, c) in enumerate(coeff)
         corr += c*rho_r^(i-1)
     end
-    mu = mu_atm + (corr^4 + shift)/e_mix
+    mu_correction = (corr^4 + shift)/e_mix
+    # Final expression is compound and given in centi poise. We convert to Pa s
+    # instead for strict SI outputs.
+    mu = 1e-3*(mu_atm + mu_correction)
     return mu::T
 end
 
@@ -64,7 +67,7 @@ function atmospheric_mu_estimate(props, z::V, temperature) where V<:AbstractVect
         else
             mu_i = 34e-5*T_r^(0.94)
         end
-        tmp = sqrt(mw)*zi
+        tmp = sqrt(1000.0*mw)*zi
         a += tmp*mu_i/e_i
         b += tmp
     end
@@ -72,9 +75,11 @@ function atmospheric_mu_estimate(props, z::V, temperature) where V<:AbstractVect
 end
 
 @inline function mixture_viscosity_parameter(molar_mass, T_c, p_c)
-    A = 5.4402*(T_c*KELVIN_TO_RANKINE)^(1/6)
-    B = sqrt(MOL_TO_KMOL*molar_mass)*(p_c*PASCAL_TO_PSI)^(2/3)
-    return CENTI_POISE_TO_PASCAL_SECOND*A/B
+    # Note: Original paper uses g/mol and pressure in atmospheres while we use
+    # kg/mol and Pa. Convert accordingly
+    A = T_c^(1/6)
+    B = sqrt(1000.0*molar_mass)*(p_c/101325.0)^(2/3)
+    return A/B
 end
 
 function pseudo_critical_properties(props, z::V) where V<:AbstractVector{T} where T
