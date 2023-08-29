@@ -51,7 +51,7 @@ V = flash_2ph(eos, conditions)
 
 # output
 
-0.2658498609675619
+0.2660973082539688
 ```
 
 ## K-values and fractions
@@ -80,22 +80,22 @@ K
 # output
 
 2-element Vector{Float64}:
- 4.119472435769978
- 0.00048241080032170367
+ 4.1227246229737515
+ 0.0004711582061535555
 ```
 From the chosen overall mole fractions `z`, and the flashed `K`-values together with the vapor fraction `V` we can get the phase mole fractions in the liquid phase:
 ```jldoctest
 julia> liquid_mole_fraction.(z, K, V)
 2-element Vector{Float64}:
- 0.24266084237653415
- 0.7573391576234659
+ 0.24247146623483945
+ 0.7575285337651605
 ```
 As expected, the liquid phase has more of the heavy component than in the overall mole fractions (0.75 relative to 0.6). If we compute the vapor fractions,
 ```jldoctest
 julia> vapor_mole_fraction.(z, K, V)
 2-element Vector{Float64}:
- 0.999634651410856
- 0.00036534858914410106
+ 0.9996430842149212
+ 0.0003569157850789261
 ```
 we see that the vapor phase is almost entirely made up of the lighter methane at the chosen conditions.
 
