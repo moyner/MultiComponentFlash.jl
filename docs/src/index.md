@@ -45,7 +45,7 @@ Julia packages:
 * [Clapeyron.jl](https://github.com/ypaul21/Clapeyron.jl) supports more advanced equations of state in addition to the cubics (SAFT-type and empirical EOS) and has a much larger API for thermodynamical properties. At the time of writing, this package does not support a full flash.
 
 Julia interfaces to other useful packages:
-* [PyThermo.jl](https://github.com/stillyslalom/PyThermo.jl) is an interface to the [PyThermo](https://pypi.org/project/pythermo/) package.
+* [PyThermo.jl](https://github.com/stillyslalom/PyThermo.jl) is an interface to the [Thermo](https://pypi.org/project/thermo/) package.
 * [CoolProp.jl](https://github.com/CoolProp/CoolProp.jl) is an interface to the [CoolProp](http://www.coolprop.org/) library.
 
 # Contact
