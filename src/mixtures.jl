@@ -28,7 +28,7 @@ factor, all properties must be specified. Explanation of inputs:
 mw: Molar mass (kg / mol)
 p_c: Critical pressure (Pa)
 T_c: Critical temperature (°K)
-V_c: Critical volume (m^3)
+V_c: Critical volume (m^3 / mol)
 acentric_factor (dimensionless)
 """
 function MolecularProperty(; mw, p_c, T_c, V_c, acentric_factor = 0.0)
