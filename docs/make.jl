@@ -6,6 +6,7 @@ DocMeta.setdocmeta!(MultiComponentFlash, :DocTestSetup, :(using MultiComponentFl
 
 makedocs(;
     modules=[MultiComponentFlash],
+    strict = false,
     authors="Olav Møyner <olav.moyner@gmail.com>",
     repo="https://github.com/moyner/MultiComponentFlash.jl/blob/{commit}{path}#{line}",
     sitename="MultiComponentFlash.jl",
