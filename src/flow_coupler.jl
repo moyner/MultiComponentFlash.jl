@@ -87,22 +87,28 @@ The value in the absent phase will be zero.
     state = f.state
     # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute saturations. Has flash been called?."
     if state == two_phase_lv
-        # A faster definition that doesn't go via molar volume, but assumes no shifts:
-        # Z_l = f.liquid.Z
-        # Z_v = f.vapor.Z
-        # S_v = Z_v*V/(Z_l*(1-V) + Z_v*V)
-        V = f.V
-        L = one(V) - V
-        vol_v = V*molar_volume(eos, p, Temp, f.vapor)
-        vol_l = L*molar_volume(eos, p, Temp, f.liquid)
-        S_v = vol_v/(vol_v + vol_l)
+        S_v = two_phase_vapor_saturation(eos, p, Temp, f)
     elseif state == single_phase_v
         S_v = one(T)
     else
         S_v = zero(T)
     end
-    S_l = 1 - S_v
+    S_l = one(T) - S_v
     return (S_l = S_l::T, S_v = S_v::T)
+end
+
+@inline function two_phase_vapor_saturation(eos, p, Temp, f::FlashedMixture2Phase{T}) where T
+    state = f.state
+    # A faster definition that doesn't go via molar volume, but assumes no shifts:
+    # Z_l = f.liquid.Z
+    # Z_v = f.vapor.Z
+    # S_v = Z_v*V/(Z_l*(1-V) + Z_v*V)
+    V = f.V
+    L = one(V) - V
+    vol_v = V*molar_volume(eos, p, Temp, f.vapor)
+    vol_l = L*molar_volume(eos, p, Temp, f.liquid)
+    S_v = vol_v/(vol_v + vol_l)
+    return S_v
 end
 
 "Compute molar volume of a flashed phase"
