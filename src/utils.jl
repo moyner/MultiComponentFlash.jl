@@ -20,7 +20,7 @@ function single_phase_label(mixture, cond)
         T_c += m.T_c*V
         V_c += V
     end
-    return Float64(cond.T < T_c)
+    return Float64(cond.T > T_c)
 end
 
 """
