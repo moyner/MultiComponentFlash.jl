@@ -66,6 +66,37 @@ function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64)
     return FlashedMixture2Phase(unknown_phase_state_lv, K, V, liquid, vapor)
 end
 
+function flashed_mixture_2ph(eos, cond, K = initial_guess_K(eos, cond); method = SSIFlash(), kwarg...)
+    # Convenience function for getting flashed phases
+    S = flash_storage(eos, cond, method = method)
+    return flashed_mixture_2ph!(S, eos, cond, K; method = method, kwarg...)
+end
+
+function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
+    V, K, rep = flash_2ph!(storage, K, eos, conditions; kwarg..., extra_out = true)
+    V = single_phase_label(eos.mixture, conditions)
+    (; p, T, z) = conditions
+    forces = storage.forces
+    x = @. liquid_mole_fraction(z, K, V)
+    y = @. vapor_mole_fraction(x, K)
+    if V == 0 || V == 1
+        if V == 0
+            state = single_phase_l
+        else
+            state = single_phase_v
+        end
+        liquid = vapor = cond
+        Z_L = Z_V = mixture_compressibility_factor(eos, conditions, forces)
+    else
+        state = two_phase_lv
+        liquid = (p = p, T = T, z = x)
+        vapor = (p = p, T = T, z = y)
+        Z_L = mixture_compressibility_factor(eos, liquid, forces)
+        Z_V = mixture_compressibility_factor(eos, vapor, forces)
+    end
+    return FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V)
+end
+
 function phase_data(mix::FlashedMixture2Phase, phase)
     if phase == :liquid
         return mix.liquid

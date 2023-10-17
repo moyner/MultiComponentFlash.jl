@@ -237,7 +237,6 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     p_ad = secondary_ad(1)
     T_ad = secondary_ad(2)
     T_cond = typeof(p_ad)
-    
     if static_size
         z_ad = @MVector zeros(T_cond, n)
         J_inv = @MMatrix zeros(np, external_partials)
