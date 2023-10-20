@@ -1,10 +1,19 @@
 
 module MultiComponentFlash
     using LinearAlgebra, ForwardDiff, StaticArrays, Roots
+    # Constants.
+    const MINIMUM_COMPOSITION = 1e-10
+    const IDEAL_GAS_CONSTANT = 8.3144598
+    # Load types first
+    include("mixture_types.jl")
+    include("eos_types.jl")
+    include("flash_types.jl")
+    include("flow_coupler_types.jl")
     # Types that define specific cubic equations of state
     export SoaveRedlichKwong, RedlichKwong, PengRobinson, PengRobinsonCorrected, ZudkevitchJoffe
     # The generic cubic form that supports the above
-    export GenericCubicEOS, number_of_components
+    export GenericCubicEOS
+    export number_of_components
     # Flash interfaces
     export flash_2ph, flash_2ph!, flash_storage
     export stability_2ph, stability_2ph!
@@ -32,8 +41,6 @@ module MultiComponentFlash
     export lbc_viscosity, lbc_viscosities
     export set_partials, set_partials_phase_mole_fractions!, set_partials_vapor_fraction
 
-    const MINIMUM_COMPOSITION = 1e-10
-    const IDEAL_GAS_CONSTANT = 8.3144598
     include("mixtures.jl")
     include("kvalues.jl")
     include("rachford_rice.jl")
