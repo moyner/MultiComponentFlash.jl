@@ -25,6 +25,11 @@ function wilson_estimate!(K::AbstractVector{R}, props, p::R, T::R) where R<:Real
     end
 end
 
+#used as a hook for extensions
+function wilson_estimate!(K::AbstractVector{R}, props, p::R, T::R, storage) where R<:Real
+    return wilson_estimate(K, props, p, T)
+end
+
 """
     wilson_estimate(properties, p, T)
 
