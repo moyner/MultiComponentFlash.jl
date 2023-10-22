@@ -28,6 +28,41 @@ function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false)
     end
     i = 1
     n = length(z)
+    if n == 2 #exact solution, linear
+        z1,z2 = z
+        k1,k2 = K
+        b1,b2 = 1/(1-k1),1/(1-k2)
+        a1 = (z1*b2 + z2*b1)
+        a0 = z1+z2
+        return a1/a0
+    elseif n == 3 #exact solution, quadratic
+        z1,z2,z3 = z
+        k1,k2,k3 = K
+        b1,b2,b3 = 1/(1-k1),1/(1-k2),1/(1-k3)
+        a2 =(z1 + z2 + z3)
+        a1 = -b1*(z2 + z3) - b2*(z1 + z3) - b3*(z1 + z2)
+        a0 = b1*b2*z3 + b1*b3*z2 + b2*b3*z1
+        Δ = a1*a1 - 4*a0*a2
+        inva2 = 1/(2*a2)
+        Δ2 = sqrt(Δ)*inva2
+        x = -a1*inva2
+        β1 = x-Δ2
+        β2 = x+Δ2
+        βmax = max(β1,β2)
+        βmin = min(β1,β2)
+        if 0 < β1 < 1
+            return β1
+        elseif 0 < β2 < 1
+            return β2
+        elseif isfinite(β1+β2)
+            kmin = min(k1,k2,k3)
+            kmax = max(k1,k2,k3)
+            kmin > 1 && return βmax
+            kmax < 1 && return βmin
+        else
+            return zero(Δ2)/zero(Δ2)
+        end
+    end
     while i < maxiter
         if ad
             f(V) = objectiveRR(V, K, z)
