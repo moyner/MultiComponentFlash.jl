@@ -26,7 +26,6 @@ end
 
 function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
     V, K, rep = flash_2ph!(storage, K, eos, conditions; kwarg..., extra_out = true)
-    V = single_phase_label(eos.mixture, conditions)
     p = conditions.p
     T = conditions.T
     z = conditions.z
@@ -34,6 +33,7 @@ function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
     x = @. liquid_mole_fraction(z, K, V)
     y = @. vapor_mole_fraction(x, K)
     if V == 0 || V == 1
+        V = single_phase_label(eos.mixture, conditions)
         if V == 0
             state = single_phase_l
         else
@@ -52,11 +52,7 @@ function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
 end
 
 function phase_data(mix::FlashedMixture2Phase, phase)
-    if phase == :liquid
-        return mix.liquid
-    else
-        return mix.vapor
-    end
+    return getfield(mix, phase)
 end
 
 """
@@ -69,7 +65,7 @@ Always returns a named tuple of (S_l, S_v), even if the mixture is single-phase.
 The value in the absent phase will be zero.
 """
 @inline function phase_saturations(eos, p, Temp, f::FlashedMixture2Phase{T}) where T
-    state = f.state
+    state = f.state::PhaseState2Phase
     # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute saturations. Has flash been called?."
     if state == two_phase_lv
         S_v = two_phase_vapor_saturation(eos, p, Temp, f)
