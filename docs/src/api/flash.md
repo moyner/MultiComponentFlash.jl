@@ -13,7 +13,7 @@ Private = false
 ## Two-phase flash
 ```@autodocs
 Modules = [MultiComponentFlash]
-Pages   = ["flash.jl"]
+Pages   = ["flash.jl", "flash_types.jl"]
 Order   = [:type, :function]
 Private = false
 ```
