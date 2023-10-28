@@ -159,7 +159,7 @@ end
 function flash_storage_internal_newton!(out, eos, cond, method; static_size = false, diff_externals = false, kwarg...)
     n = number_of_components(eos)
     np = 2*n + 1
-    primary_ad(ix) = get_ad(0.0, np, :Flash, ix)
+    primary_ad(ix) = get_ad(0.0, np, typeof(ForwardDiff.Tag(Val(:Flash),Nothing)), ix)
     V_ad = primary_ad(np)
     T = typeof(V_ad)
     if static_size
@@ -191,7 +191,7 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     n = number_of_components(eos)
     np = length(out[:r])
     external_partials = n + 2 # p, T, z_1, ... z_n
-    secondary_ad(ix) = get_ad(0.0, external_partials, :InverseFlash, ix)
+    secondary_ad(ix) = get_ad(0.0, external_partials, typeof(ForwardDiff.Tag(Val(:InverseFlash),Nothing)), ix)
     p_ad = secondary_ad(1)
     T_ad = secondary_ad(2)
     T_cond = typeof(p_ad)
