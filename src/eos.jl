@@ -100,11 +100,11 @@ function mixture_compressibility_factor(eos::AbstractCubicEOS, cond,
     return r
 end
 
-minimum_allowable_root(eos::AbstractCubicEOS, forces, scalars, phase) = scalars.B
+minimum_allowable_root(eos::AbstractCubicEOS, forces, scalars) = scalars.B
 minimum_allowable_root(eos, forces, scalars) = 1e-16
 
-@inline pick_root(eos, roots::Real, cond, forces, scalars) = roots
-function pick_root(eos, roots, cond, forces, scalars)
+@inline pick_root(eos, roots::Real, cond, forces, scalars, phase = :unknown) = roots
+function pick_root(eos, roots, cond, forces, scalars, phase = :unknown)
     r_ϵ = minimum_allowable_root(eos, forces, scalars)
     max_r = maximum(roots)
     min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
