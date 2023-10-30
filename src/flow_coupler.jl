@@ -178,3 +178,20 @@ division for mobilities etc. safe.
     end
     return (μ_l = l::T, μ_v = v::T)
 end
+
+"""
+    molar_masses(eos)
+
+Returns a list of molecular weights (in kg/mol) for each component present in the input equation of state)
+"""
+function molar_masses(eos)
+    return map((x) -> x.mw, eos.mixture.properties)
+end
+"""
+    component_names(eos)
+
+Returns the list of component names for the input equation of state)
+"""
+function component_names(eos)
+    return eos.mixture.mixture.component_names
+end
