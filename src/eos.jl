@@ -369,8 +369,15 @@ Returns the list of component names for the input equation of state)
 component_names(eos::AbstractEOS) = component_names(eos.mixture)
 component_names(mixture::MultiComponentMixture) = mixture.component_names
 
+"""
+    eostype(eos::AbstractEOS)
+Returns the underlying EOS type.
+"""
+eostype(eos::AbstractEOS) = eos.type
+
 function Base.summary(eos::AbstractEOS)
     n = number_of_components(eos)
     cnames = join(component_names(eos), ", ")
-    return "$(eos.type) EOS with $n components: $cnames"
+    return "$(eostype(eos)) EOS with $n components: $cnames"
 end
+
