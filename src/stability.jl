@@ -24,9 +24,9 @@ function stability_2ph!(storage, K, eos, c; verbose = false, kwarg...)
     mixture_fugacities!(f_z, eos, c, forces)
     props = eos.mixture.properties
 
-    wilson_estimate!(K, props, p, T)
+    wilson_estimate!(K, eos, p, T)
     stable_vapor, i_v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true); kwarg...)
-    wilson_estimate!(K, props, p, T)
+    wilson_estimate!(K, eos, p, T)
     stable_liquid, i_l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false); kwarg...)
     stable = stable_vapor && stable_liquid
     if !stable
