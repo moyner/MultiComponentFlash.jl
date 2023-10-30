@@ -82,7 +82,7 @@ binary_interaction(::Nothing, i, j) = 0.0
 Base.@propagate_inbounds binary_interaction(B::AbstractMatrix, i, j) = B[i, j]
 
 """
-    mixture_compressibility_factor(eos, cond, [forces, scalars])
+    mixture_compressibility_factor(eos, cond, [forces, scalars, phase])
 
 Compute compressibility factor for current conditions. Forces and scalars can be 
 provided if they are already known.
@@ -92,14 +92,15 @@ The compressibility factor adjusts the ideal gas law to account for non-linear b
 
 function mixture_compressibility_factor(eos::AbstractCubicEOS, cond,
                                             forces = force_coefficients(eos, cond),
-                                            scalars = force_scalars(eos, cond, forces))
+                                            scalars = force_scalars(eos, cond, forces),
+                                            phase = :unknown)
     poly = eos_polynomial(eos, forces, scalars)
     roots = solve_roots(eos, poly)
-    r = pick_root(eos, roots, cond, forces, scalars)
+    r = pick_root(eos, roots, cond, forces, scalars, phase)
     return r
 end
 
-minimum_allowable_root(eos::AbstractCubicEOS, forces, scalars) = scalars.B
+minimum_allowable_root(eos::AbstractCubicEOS, forces, scalars, phase) = scalars.B
 minimum_allowable_root(eos, forces, scalars) = 1e-16
 
 @inline pick_root(eos, roots::Real, cond, forces, scalars) = roots
@@ -109,6 +110,10 @@ function pick_root(eos, roots, cond, forces, scalars)
     min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
     if min_r == max_r
         r = min_r
+    elseif phase = :liquid
+        r = min_r
+    elseif phase = :vapor
+        r = max_r
     else
         function Gibbs(Z)
             E = 0.0
@@ -346,4 +351,26 @@ function solve_cubic_positive_roots(a, b, c)
         r3 = -(2*sqrt(Q)*cos((theta - 2*pi)/3)) - a/3
         return (r1, r2, r3)
     end
+end
+
+"""
+    molar_masses(eos)
+
+Returns a list of molecular weights (in kg/mol) for each component present in the input equation of state)
+"""
+molar_masses(eos::AbstractEOS) = molar_masses(eos.mixture)
+molar_masses(mixture::MultiComponentMixture) = map((x) -> x.mw, mixture.properties)
+
+"""
+    component_names(eos)
+
+Returns the list of component names for the input equation of state)
+"""
+component_names(eos::AbstractEOS) = component_names(eos.mixture)
+component_names(mixture::MultiComponentMixture) = mixture.component_names
+
+function Base.summary(eos::AbstractEOS)
+    n = number_of_components(eos)
+    cnames = join(component_names(eos), ", ")
+    "$(eos.type) EOS with $n components: $cnames")
 end
