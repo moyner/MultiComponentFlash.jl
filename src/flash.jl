@@ -370,7 +370,7 @@ end
 #however, EOS that require iterative volume calculations require specifying a phase.
 function prep(eos, cond, forces,phase = :unknown)
     s = force_scalars(eos, cond, forces)
-    Z = mixture_compressibility_factor(eos, cond, forces, s)
+    Z = mixture_compressibility_factor(eos, cond, forces, s, phase)
     return (Z, s)
 end
 
