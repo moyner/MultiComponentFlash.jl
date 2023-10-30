@@ -372,5 +372,5 @@ component_names(mixture::MultiComponentMixture) = mixture.component_names
 function Base.summary(eos::AbstractEOS)
     n = number_of_components(eos)
     cnames = join(component_names(eos), ", ")
-    "$(eos.type) EOS with $n components: $cnames")
+    return "$(eos.type) EOS with $n components: $cnames"
 end
