@@ -19,7 +19,7 @@ end
 
 Update a vector K in-place with K-values from `wilson_estimate`.
 """
-function wilson_estimate!(K::AbstractVector{R}, props, p::R, T::R) where R<:Real
+function wilson_estimate!(K::AbstractVector{R}, props::Union{Tuple,AbstractVector}, p::R, T::R) where R<:Real
     @inbounds for i in eachindex(K)
         K[i] = wilson_estimate(props[i], p, T)::R
     end
