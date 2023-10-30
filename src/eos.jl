@@ -110,9 +110,9 @@ function pick_root(eos, roots, cond, forces, scalars)
     min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
     if min_r == max_r
         r = min_r
-    elseif phase = :liquid
+    elseif phase == :liquid
         r = min_r
-    elseif phase = :vapor
+    elseif phase == :vapor
         r = max_r
     else
         function Gibbs(Z)
