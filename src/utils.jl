@@ -10,7 +10,7 @@ Li's method for single-phase labeling of a mixture. Estimate of pure vapor/liqui
 
 Returns a vapor fraction that is either 1.0 (=pure vapor) or 0.0 (=pure liquid).
 """
-function single_phase_label(mixture, cond)
+function single_phase_label(mixture::MultiComponentMixture, cond)
     # Li's method for phase labeling.
     z = cond.z
     T_c = 0.0
@@ -23,6 +23,8 @@ function single_phase_label(mixture, cond)
     T_c /= V_c
     return Float64(cond.T > T_c)
 end
+
+single_phase_label(eos::AbstractEOS,cond) = single_phase_label(eos.mixture,cond)
 
 """
     lbc_viscosity(eos, p, T, ph; <keyword arguments>)

@@ -19,10 +19,18 @@ end
 
 Update a vector K in-place with K-values from `wilson_estimate`.
 """
-function wilson_estimate!(K::AbstractVector{R}, props, p::R, T::R) where R<:Real
+function wilson_estimate!(K::AbstractVector{R}, props::Union{Tuple,AbstractVector}, p::R, T::R) where R<:Real
     @inbounds for i in eachindex(K)
         K[i] = wilson_estimate(props[i], p, T)::R
     end
+end
+
+function wilson_estimate!(K::AbstractVector{R}, eos::AbstractEOS, p::R, T::R) where R<:Real
+    return wilson_estimate!(K, eos.mixture, p, T)
+end
+
+function wilson_estimate!(K::AbstractVector{R}, mixture::MultiComponentMixture, p, T) where R<:Real
+    wilson_estimate!(K, mixture.properties, p, T)
 end
 
 """
@@ -30,9 +38,9 @@ end
 
 Create vector of K-values that holds the `wilson_estimate` for each species.
 """
-function wilson_estimate(mixture::MultiComponentMixture, p, T)
-    K = zeros(number_of_components(mixture))
-    wilson_estimate!(K, mixture.properties, p, T)
+function wilson_estimate(eos, p, T)
+    K = zeros(number_of_components(eos))
+    wilson_estimate!(K, mixture, p, T)
     return K
 end
 
@@ -52,4 +60,4 @@ end
 
 In-place version of `initial_guess_K`.
 """
-initial_guess_K!(K, eos, cond) = wilson_estimate!(K, eos.mixture.properties, cond.p, cond.T)
+initial_guess_K!(K, eos, cond) = wilson_estimate!(K, eos, cond.p, cond.T)
