@@ -20,7 +20,7 @@ julia> solve_rachford_rice([0.5, 1.5], [0.3, 0.7])
 0.8000000000000002
 ```
 """
-function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = false)
+function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = false, verbose = false)
     n = length(z)
     if n == 2 && analytical #exact solution, linear
         z1,z2 = z
@@ -64,6 +64,7 @@ function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false,
         if isnan(V)
             V = (V_min + V_max)/2
         end
+        verbose && println("Solving Rachford-Rice for $n components.\nInitial guess V = $V\nBounds: [$V_min, $V_max]")
         i = 1
         while i < maxiter
             if ad
@@ -83,10 +84,13 @@ function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false,
                 end
                 V = V + r/denum
             end
-            if abs(r) < tol
+            e = abs(r)
+            verbose && println("#$i V = $V, Δ=$e")
+            if e < tol
                 break
             end
             if V < V_min || V > V_max
+                verbose && println("V = $V outside bounds [$V_min, $V_max], using bisection.")
                 obj = (v) -> objectiveRR(v, K, z)
                 V = find_zero(obj, (V_min, V_max), Bisection())
                 break
