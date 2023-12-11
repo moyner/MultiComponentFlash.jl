@@ -30,9 +30,7 @@ function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
     T = conditions.T
     z = conditions.z
     forces = storage.forces
-    x = @. liquid_mole_fraction(z, K, V)
-    y = @. vapor_mole_fraction(x, K)
-    if V == 0 || V == 1
+    if isnan(V)
         V = single_phase_label(eos.mixture, conditions)
         if V == 0
             state = single_phase_l
@@ -41,7 +39,11 @@ function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
         end
         liquid = vapor = cond
         Z_L = Z_V = mixture_compressibility_factor(eos, conditions, forces)
+        x = copy(z)
+        y = copy(z)
     else
+        x = @. liquid_mole_fraction(z, K, V)
+        y = @. vapor_mole_fraction(x, K)
         state = two_phase_lv
         liquid = (p = p, T = T, z = x)
         vapor = (p = p, T = T, z = y)
