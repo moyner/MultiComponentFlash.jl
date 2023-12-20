@@ -1,8 +1,9 @@
 # Advanced usage
+
 These are intended as more advanced examples for users who may want to use `MultiComponentFlash` as a part of another code, or get better performance by pre-allocating buffers. Please read [Basic usage](@ref) first.
 
+## Avoiding allocations
 
-# Avoiding allocations
 ```@meta
 DocTestSetup = quote
     using MultiComponentFlash
@@ -25,6 +26,7 @@ end
 ```
 
 If many flashes of the same mixture are to be performed at different conditions, you may want to pre-allocate the storage buffers for the flash:
+
 ```jldoctest
 m = SSIFlash()
 K = zeros(number_of_components(eos))
@@ -35,10 +37,13 @@ S = flash_storage(eos, conditions, method = m)
 
 16
 ```
+
 See the unit tests for examples where the flash can use `StaticArrays` to avoid allocations entirely.
 
-# Performance example
+## Performance example
+
 The default interface is designed for ease-of-use with standard Julia types, but the module  also supports further by using `StaticArrays`:
+
 ```julia
 using MultiComponentFlash, BenchmarkTools, StaticArrays
 function bench(m, static_size = false)
@@ -70,9 +75,10 @@ bench(NewtonFlash())
 println("Newton (static arrays):")
 bench(NewtonFlash(), true)
 ```
-The output will be a bit different on other CPUs, but this flash generally takes around 20 microseconds to complete, including both stability test and flash. 
 
-```
+The output will be a bit different on other CPUs, but this flash generally takes around 20 microseconds to complete, including both stability test and flash.
+
+```julia
 SSI:
 V = 0.03279769425318795 (Completed in 14 iterations)
   18.500 μs (0 allocations: 0 bytes)
@@ -91,8 +97,10 @@ V = 0.032797694260046494 (Completed in 4 iterations)
 !!! note "Use of `StaticArrays`"
     Switching to statically sized arrays can improve the speed, at the cost of longer compilation times. Please note that for `StaticArrays` there will be compilation that is dependent on the number of components in your mixture. For example, switching from a five to six component mixture will trigger a full recompilation of your chosen flash.
 
-# Generate and plot a phase diagram
+## Generate and plot a phase diagram
+
 We create a three-component mixture and flash for a range of pressure and temperature conditions:
+
 ```julia
 using MultiComponentFlash, Plots
 ns = 1000
@@ -129,4 +137,5 @@ contour(p./ubar, T .- 273.15, data, levels = 10, fill=(true,cgrad(:hot)))
 ylabel!("Pressure [Bar]")
 xlabel!("T [°Celsius]")
 ```
+
 ![Phase diagram](../assets/phase_diagram_simple.png)

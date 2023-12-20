@@ -1,7 +1,9 @@
 # Basic usage
+
 This section covers the basics of how to perform vapor-liquid flashes. For examples of how to get better performance, please see [Advanced usage](@ref).
 
-# Vapor-liquid equilibrium for constants
+## Vapor-liquid equilibrium for constants
+
 Many vapor-liquid problems can be solved under the assumption of equilibrium constants (K-values). If the K-values are independent of the phase mole fractions, the vapor fraction ``V`` can be determined by a solution of the Rachford-Rice equations. We define the standard relations for molar balance:
 `` z_i = V y_i + (1-V) x_i ``
 where `` z_i `` is the overall mole fraction of component ``i``, ``y_i`` the vapor mole fraction of that same component and ``x_i`` the liquid fraction:
@@ -10,6 +12,7 @@ where `` z_i `` is the overall mole fraction of component ``i``, ``y_i`` the vap
 The Rachford-Rice reformulation of these equations is the natural choice for a numerical solution. For more details, the [Wikipedia page on flash evaporation](https://en.wikipedia.org/wiki/Flash_evaporation) is a good starting point.
 
 We can demonstrate this by a binary system where the first component is light and easy to vaporize (it is found in the vapor phase 9 times out of 10) and the second is heavy (being found in the liquid phase 9 times out of 10). Let us define this mixturem, and take a 70-30 mixture in moles and perform a flash to find the vapor fraction ``V``:
+
 ```jldoctest
 using MultiComponentFlash
 K = [0.1, 9.0] # K-values
@@ -20,10 +23,13 @@ solve_rachford_rice(K, z)
 
 0.24583333333333332
 ```
+
 The result indicates that we can expect to have about 3 moles of liquid per mole of vapor.
 
-# Two-phase multicomponent flash
+## Two-phase multicomponent flash
+
 For more complex mixtures, the assumption of constant K-values is not very accurate. We need to perform a full flash by defining a mixture together with an equation-of-state:
+
 ```jldoctest
 using MultiComponentFlash
 # Define two species: One heavy and one light.
@@ -55,6 +61,7 @@ V = flash_2ph(eos, conditions)
 ```
 
 ## K-values and fractions
+
 ```@meta
 DocTestSetup = quote
     using MultiComponentFlash
@@ -72,7 +79,9 @@ DocTestSetup = quote
     V, K, report = flash_2ph(eos, conditions, extra_out = true, method = m)
 end
 ```
+
 We can also get more output by turning on the `extra_out` flag. We can use this to examine the K-values (ratio between vapor and liquid mole fractions for each component):
+
 ```jldoctest
 V, K, report = flash_2ph(eos, conditions, extra_out = true);
 K
@@ -83,33 +92,43 @@ K
  4.12272462297378
  0.00047115820615355295
 ```
+
 From the chosen overall mole fractions `z`, and the flashed `K`-values together with the vapor fraction `V` we can get the phase mole fractions in the liquid phase:
+
 ```jldoctest
 julia> liquid_mole_fraction.(z, K, V)
 2-element Vector{Float64}:
  0.24247146623483776
  0.7575285337651623
 ```
+
 As expected, the liquid phase has more of the heavy component than in the overall mole fractions (0.75 relative to 0.6). If we compute the vapor fractions,
+
 ```jldoctest
 julia> vapor_mole_fraction.(z, K, V)
 2-element Vector{Float64}:
  0.9996430842149211
  0.000356915785078925
 ```
+
 we see that the vapor phase is almost entirely made up of the lighter methane at the chosen conditions.
 
-## Switching algorithms
+## Changing the solution algorithm to Newton
+
 If we examine the third output, we can see output about number of iterations and a verification that the flash converged within the default tolerance:
+
 ```jldoctest
 julia> report
 (its = 8, converged = true)
 ```
+
 The default method is the `SSIFlash()` method. The name is an abbreviation for successive-substitution, a simple but very robust method.
 
 We could alternatively switch to `NewtonFlash()` to use Newton's method with AD instead to reduce the number of iterations:
+
 ```jldoctest
 julia> V, K, report = flash_2ph(eos, conditions, extra_out = true, method = NewtonFlash()); report
 (its = 5, converged = true)
 ```
+
 It is also possible to use `SSINewtonFlash()` that switches from SSI to Newton after a prescribed number of iterations, which is effective around the critical region where SSI has slow convergence.
