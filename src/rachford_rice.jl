@@ -66,6 +66,9 @@ function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false,
     if isnan(V)
         V = (V_min + V_max)/2
     end
+    if V_max < V_min
+        V_min, V_max = V_max, V_min
+    end
     verbose && println("Solving Rachford-Rice for $n components.\nInitial guess V = $V\nBounds: [$V_min, $V_max]")
     i = 1
     while i < maxiter
