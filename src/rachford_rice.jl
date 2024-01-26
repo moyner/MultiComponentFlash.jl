@@ -112,3 +112,21 @@ function objectiveRR(V, K, z)
     end
     return eq
 end
+
+function objectiveRR_dV(V, K, z)
+    RR_dv = 0.0
+    for i in eachindex(K)
+        z_i = z[i]
+        K_i = K[i]
+        RR_dv -= (z_i*(K_i - 1)^2)/(1+V*(K_i-1))^2
+    end
+    return RR_dv
+end
+
+function objectiveRR_dK(V, K, z, i)
+    return z[i]/(1.0 + V*(K[i]-1))^2
+end
+
+function objectiveRR_dz(V, K, z, i)
+    return (K[i] - 1.0)/(1.0 + V*(K[i]-1))
+end

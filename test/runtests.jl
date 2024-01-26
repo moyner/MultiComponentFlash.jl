@@ -68,3 +68,34 @@ end
     eos2 = KValuesEOS(cond -> [0.01, 2.0], mixture)
     @test round(flash_2ph(eos2, cond), digits = 4) ≈ 0.8091
 end
+
+using ForwardDiff
+@testset "Rachford-Rice derivatives" begin
+    N = 25
+    for z_light in range(0.0, 1.0, N)
+        z = [z_light, 1.0 - z_light]
+        for K1 in range(0.001, 1000.0, N)
+            for K2 in range(0.001, 1000.0, N)
+                K = [K1, K2]
+                for V in range(0, 1, N)
+                    f_v(V) = MultiComponentFlash.objectiveRR(V, K, z)
+                    dv_ad = ForwardDiff.derivative(f_v, V)
+                    dv_a = MultiComponentFlash.objectiveRR_dV(V, K, z)
+                    @test dv_a ≈ dv_ad
+                    f_K(K) = MultiComponentFlash.objectiveRR(V, K, z)
+                    dK_ad = ForwardDiff.gradient(f_K, K)
+                    for i in eachindex(K)
+                        dK_a_i = MultiComponentFlash.objectiveRR_dK(V, K, z, i)
+                        @test dK_a_i ≈ dK_ad[i]
+                    end
+                    f_z(z) = MultiComponentFlash.objectiveRR(V, K, z)
+                    dz_ad = ForwardDiff.gradient(f_z, z)
+                    for i in eachindex(z)
+                        dz_a_i = MultiComponentFlash.objectiveRR_dz(V, K, z, i)
+                        @test dz_a_i ≈ dz_ad[i]
+                    end
+                end
+            end
+        end
+    end
+end
