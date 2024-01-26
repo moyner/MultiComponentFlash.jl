@@ -58,3 +58,10 @@ end
     m2 = MolecularProperty(mw = 0.0440, p_c = 7.38e6, T_c = 304.1, V_c = 9.412e-5, acentric_factor = 0.224)
     @test m1 == m2
 end
+
+@testset "K-value EOS" begin
+    mixture = MultiComponentMixture(["CarbonDioxide", "Water"])
+    eos = KValuesEOS([0.01, 2.0], mixture)
+    cond = (p = 1e5, T = 273.15, z = (0.1, 0.9))
+    @test round(flash_2ph(eos, cond), digits = 4) ≈ 0.8091
+end

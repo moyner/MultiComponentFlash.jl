@@ -13,6 +13,8 @@ module MultiComponentFlash
     export SoaveRedlichKwong, RedlichKwong, PengRobinson, PengRobinsonCorrected, ZudkevitchJoffe
     # The generic cubic form that supports the above
     export GenericCubicEOS
+    # KValue "fake" EOS
+    export KValuesEOS
     export number_of_components
     # Flash interfaces
     export flash_2ph, flash_2ph!, flash_storage
@@ -43,6 +45,7 @@ module MultiComponentFlash
 
     include("mixtures.jl")
     include("kvalues.jl")
+    include("kvalues_eos.jl")
     include("rachford_rice.jl")
     include("eos.jl")
     include("flash.jl")

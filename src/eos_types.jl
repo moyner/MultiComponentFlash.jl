@@ -98,3 +98,9 @@ function GenericCubicEOS(setup::NamedTuple, mixture; volume_shift = nothing)
     end
     return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b, volume_shift)
 end
+
+struct KValuesEOS{T, R, N} <: AbstractEOS
+    "Callable on the form `cond -> V` or a set of constants (Tuple/AbstractVector)"
+    K_values_evaluator::T
+    mixture::MultiComponentMixture{R, N}
+end
