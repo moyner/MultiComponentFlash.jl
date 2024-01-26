@@ -20,7 +20,7 @@ julia> solve_rachford_rice([0.5, 1.5], [0.3, 0.7])
 0.8000000000000002
 ```
 """
-function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = false, verbose = false)
+function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = true, verbose = false)
     n = length(z)
     if analytical
         if n == 2 #exact solution, linear

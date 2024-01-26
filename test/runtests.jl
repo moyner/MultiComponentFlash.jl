@@ -64,6 +64,7 @@ end
     eos = KValuesEOS([0.01, 2.0], mixture)
     cond = (p = 1e5, T = 273.15, z = (0.1, 0.9))
     @test round(flash_2ph(eos, cond), digits = 4) ≈ 0.8091
+    @test number_of_components(eos) == 2
     eos2 = KValuesEOS(cond -> [0.01, 2.0], mixture)
     @test round(flash_2ph(eos2, cond), digits = 4) ≈ 0.8091
 end
