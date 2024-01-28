@@ -20,7 +20,7 @@ julia> solve_rachford_rice([0.5, 1.5], [0.3, 0.7])
 0.8000000000000002
 ```
 """
-function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = false, verbose = false)
+function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = true, verbose = false)
     n = length(z)
     if analytical
         if n == 2 #exact solution, linear
@@ -66,6 +66,9 @@ function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false,
     if isnan(V)
         V = (V_min + V_max)/2
     end
+    if V_max < V_min
+        V_min, V_max = V_max, V_min
+    end
     verbose && println("Solving Rachford-Rice for $n components.\nInitial guess V = $V\nBounds: [$V_min, $V_max]")
     i = 1
     while i < maxiter
@@ -108,4 +111,22 @@ function objectiveRR(V, K, z)
         @inbounds eq = eq + ((k - 1.0)*z[i])/(1.0 + V*(k - 1.0))
     end
     return eq
+end
+
+function objectiveRR_dV(V, K, z)
+    RR_dv = 0.0
+    for i in eachindex(K)
+        z_i = z[i]
+        K_i = K[i]
+        RR_dv -= (z_i*(K_i - 1)^2)/(1+V*(K_i-1))^2
+    end
+    return RR_dv
+end
+
+function objectiveRR_dK(V, K, z, i)
+    return z[i]/(1.0 + V*(K[i]-1))^2
+end
+
+function objectiveRR_dz(V, K, z, i)
+    return (K[i] - 1.0)/(1.0 + V*(K[i]-1))
 end

@@ -94,7 +94,21 @@ end
 
 function GenericCubicEOS(setup::NamedTuple, mixture; volume_shift = nothing)
     if !isnothing(volume_shift)
-        @assert length(volume_shift) == number_of_components(mixture) "Volume shift must have one value per component."
+        length(volume_shift) == number_of_components(mixture) || throw(ArgumentError("Volume shift must have one value per component."))
     end
     return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b, volume_shift)
+end
+
+struct KValuesEOS{T, R, N, V} <: AbstractEOS
+    "Callable on the form `cond -> V` or a set of constants (Tuple/AbstractVector)"
+    K_values_evaluator::T
+    mixture::MultiComponentMixture{R, N}
+    volume_shift::V
+end
+
+function KValuesEOS(K, mixture; volume_shift = nothing)
+    if !isnothing(volume_shift)
+        length(volume_shift) == number_of_components(mixture) || throw(ArgumentError("Volume shift must have one value per component."))
+    end
+    return KValuesEOS(K, mixture, volume_shift)
 end

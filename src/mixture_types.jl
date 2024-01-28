@@ -38,17 +38,21 @@ end
 """
     MolecularProperty("Name")
 
-Convenience constructor that looks up molecular properties from a table in `tabulated_properties`.
+Convenience constructor that looks up molecular properties from a table in
+`tabulated_properties`.
 
-The properties are taken from the wonderful MIT-licensed [CoolProp](http://coolprop.org). Please note that
-the equations of state included in this module may not be approprioate for all the available fluids, especially for mixtures!
+The properties are taken from the wonderful MIT-licensed
+[CoolProp](http://coolprop.org). Please note that the equations of state
+included in this module may not be appropriate for all the available species
+included in CoolProp, especially for mixtures!
 
-See list of species [at CoolProp website](http://coolprop.org/fluid_properties/PurePseudoPure.html#list-of-fluids).
+See list of species [at CoolProp
+website](http://coolprop.org/fluid_properties/PurePseudoPure.html#list-of-fluids).
 
 """
 function MolecularProperty(s::String)
     t = tabulated_properties();
-    @assert haskey(t, s)
+    haskey(t, s) || throw(ArgumentError("$s not found in `tabulated_properties()`."))
     return t[s]
 end
 
@@ -73,4 +77,14 @@ struct MultiComponentMixture{R, N}
         end
         new{realtype, n}(name, names, properties, A_ij)
     end
+end
+
+"""
+    MultiComponentMixture(names::Vector{String}; A_ij = nothing, name = "UnnamedMixture")
+
+Create a multicomponent mixture using name lookup for species.
+"""
+function MultiComponentMixture(names::Vector{String}; kwarg...)
+    props = map(MolecularProperty, names)
+    return MultiComponentMixture(props; names = names, kwarg...)
 end
