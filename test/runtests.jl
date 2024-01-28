@@ -72,12 +72,12 @@ end
 using ForwardDiff
 @testset "Rachford-Rice derivatives" begin
     N = 25
-    for z_light in range(0.0, 1.0, N)
+    for z_light in range(0.0, 1.0, length = N)
         z = [z_light, 1.0 - z_light]
-        for K1 in range(0.001, 1000.0, N)
-            for K2 in range(0.001, 1000.0, N)
+        for K1 in range(0.001, 1000.0, length = N)
+            for K2 in range(0.001, 1000.0, length = N)
                 K = [K1, K2]
-                for V in range(0, 1, N)
+                for V in range(0, 1, length = N)
                     f_v(V) = MultiComponentFlash.objectiveRR(V, K, z)
                     dv_ad = ForwardDiff.derivative(f_v, V)
                     dv_a = MultiComponentFlash.objectiveRR_dV(V, K, z)
