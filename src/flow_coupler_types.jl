@@ -19,7 +19,7 @@ function FlashedPhase(n::Integer, T::DataType = Float64)
     return FlashedPhase(x, Z)
 end
 
-function Base.convert(::Type{FlashedPhase{T, Vector{T}}}, ph::FlashedPhase{K, Vector{K}}) where {T, K<:ForwardDiff.Dual}
+function Base.convert(::Type{FlashedPhase{T, Vector{T}}}, ph::FlashedPhase{K, Vector{K}}) where {T<:AbstractFloat, K<:ForwardDiff.Dual}
     F = x -> convert(T, value(x))
     mf = map(F, ph.mole_fractions)
     Z = F(ph.Z)
