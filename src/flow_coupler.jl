@@ -53,8 +53,13 @@ function flashed_mixture_2ph!(storage, eos, conditions, K; kwarg...)
     return FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V)
 end
 
-function phase_data(mix::FlashedMixture2Phase, phase)
-    return getfield(mix, phase)
+function phase_data(mix::FlashedMixture2Phase{T, A, E}, phase) where {T, A, E}
+    if phase == :liquid
+        out = mix.liquid
+    else
+        out = mix.vapor
+    end
+    return out::FlashedPhase{T, A}
 end
 
 """

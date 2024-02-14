@@ -112,3 +112,7 @@ function KValuesEOS(K, mixture; volume_shift = nothing)
     end
     return KValuesEOS(K, mixture, volume_shift)
 end
+
+function eostype(::KValuesEOS)
+    return KValuesEOS
+end
