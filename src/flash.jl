@@ -137,7 +137,12 @@ function flash_storage(eos, cond = (p = 10e5, T = 273.15, z = zeros(number_of_co
     return NamedTuple(pairs(d))
 end
 
-function flash_storage_internal!(out, eos, cond, method; inc_jac = isa(method, AbstractNewtonFlash), static_size = false, kwarg...)
+function flash_storage_internal!(out, eos, cond, method;
+        inc_jac = isa(method, AbstractNewtonFlash),
+        inc_bypass = false,
+        static_size = false,
+        kwarg...
+    )
     n = number_of_components(eos)
     out[:forces] = force_coefficients(eos, cond, static_size = static_size)
     if static_size
@@ -152,6 +157,9 @@ function flash_storage_internal!(out, eos, cond, method; inc_jac = isa(method, A
     out[:buffer2] = alloc_vec()
     if inc_jac
         flash_storage_internal_newton!(out, eos, cond, method, static_size = static_size; kwarg...)
+    end
+    if inc_bypass
+        out[:bypass] = michelsen_critical_point_measure_storage(eos, static_size = static_size)
     end
     return out
 end
