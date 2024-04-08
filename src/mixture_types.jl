@@ -67,14 +67,16 @@ struct MultiComponentMixture{R, N}
     properties::NTuple{N, MolecularProperty{R}}
     binary_interaction::Union{Matrix{R}, Nothing}
     function MultiComponentMixture(properties; A_ij = nothing, names = ["C$d" for d in 1:length(properties)], name = "UnnamedMixture")
-        properties = Tuple(properties)
-        realtype = typeof(properties[1].mw)
         n = length(properties)
+        n > 0 || throw(ArgumentError("At least one property must be present"))
+        properties = Tuple(properties)
+        realtype = typeof(first(properties).mw)
         if !isnothing(A_ij)
             @assert size(A_ij) == (n, n) "Binary interaction coefficients must be a $n x $n matrix."
             @assert issymmetric(A_ij) "Binary interaction coefficients must be symmetric if provided."
             A_ij = Symmetric(A_ij)
         end
+        length(names) == n || throw(ArgumentError("Vector of component names must have same length as mixture."))
         new{realtype, n}(name, names, properties, A_ij)
     end
 end
