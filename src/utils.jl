@@ -103,3 +103,53 @@ end
 @inline function molar_volume(R, p, T, Z)
     return R*T*Z/p
 end
+
+function michelsen_critical_point_measure_storage(eos; T = Float64, static_size = true)
+    n = number_of_components(eos)
+    T∂ = ForwardDiff.Dual{nothing, T, n}
+    mole_numbers_ad = Vector{T∂}(undef, n)
+    for i in 1:n
+        partials = ForwardDiff.Partials{n, T}(Tuple(map(j -> Float64(i == j), 1:n)))
+        mole_numbers_ad[i] = T∂(1.0/n, partials)
+    end
+    z = mole_numbers_ad./sum(mole_numbers_ad)
+    if static_size
+        z = MVector{n, T∂}(z)
+    end
+    B = zeros(T, n, n)
+    c = (p = 101325.0, T = 303.15, z = z)
+    forces = force_coefficients(eos, c; static_size = static_size)
+    return (B = B, forces = forces, z = z)
+end
+
+function michelsen_critical_point_measure(eos, p, T, mole_numbers; kwarg...)
+    S = michelsen_critical_point_measure_storage(eos; kwarg...)
+    michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
+end
+
+function michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
+    # From Michelsen (1982): The Isothermal Flash Problem. Part I: Stability
+    # Estimate the distance to the critical point through smallest eigenvalue.
+    n = length(mole_numbers)
+    z = S.z
+    B = S.B
+    forces = S.forces
+    for i in eachindex(mole_numbers, z)
+        z[i] += mole_numbers[i] - z[i].value
+    end
+    zt = sum(z)
+    @. z /= zt
+    c = (p = p, T = T, z = z)
+    forces = force_coefficients!(forces, eos, c)
+    scalars = force_scalars(eos, c, forces)
+    Z = mixture_compressibility_factor(eos, c, forces, scalars)
+    for i in eachindex(mole_numbers)
+        n_i = mole_numbers[i]
+        f_i = MultiComponentFlash.component_fugacity_coefficient(eos, c, i, Z, forces, scalars)
+        for j in eachindex(mole_numbers)
+            n_j = mole_numbers[j]
+            B[i, j] = (i == j) + sqrt(n_i*n_j)*(f_i.partials[j])
+        end
+    end
+    return eigmin(B)
+end

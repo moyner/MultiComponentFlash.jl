@@ -99,3 +99,19 @@ using ForwardDiff
         end
     end
 end
+
+@testset "Critical point measure" begin
+    decane = MolecularProperty("n-Decane")
+    # The light component is given with explicit properties
+    mw = 0.0160428  # Molar mass (kg/mole)
+    P_c = 4.5992e6  # Critical pressure (Pa)
+    T_c = 190.564   # Critical temperature (°K)
+    V_c = 9.4118e-5 # Critical volume (m^3/mole)
+    ω = 0.22394     # Acentric factor
+    methane = MolecularProperty(mw, P_c, T_c, V_c, ω)
+    mixture = MultiComponentMixture((methane, decane))
+    equation_of_state = GenericCubicEOS(mixture, PengRobinson())
+    z = [0.4, 0.6]
+    @test MultiComponentFlash.michelsen_critical_point_measure(equation_of_state, 5e6, 303.15, z) ≈ 0.776435 atol = 1e-4
+    @test MultiComponentFlash.michelsen_critical_point_measure(equation_of_state, 5e6, 303.15, z, static_size = false) ≈ 0.776435 atol = 1e-4
+end
