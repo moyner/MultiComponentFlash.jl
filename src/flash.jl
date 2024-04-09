@@ -60,9 +60,16 @@ Remaining arguments documented in [`flash_2ph`](@ref).
 
 """
 function flash_2ph!(storage, K, eos, c, V = NaN;
-                                method = SSIFlash(), verbose = false, maxiter = 20000,
-                                tolerance = 1e-8, extra_out = false, update_forces = true,
-                                check = true, z_min = MINIMUM_COMPOSITION, kwarg...)
+        method = SSIFlash(),
+        verbose::Bool = false,
+        maxiter::Int = 20000,
+        tolerance::Float64 = 1e-8,
+        extra_out::Bool = false,
+        update_forces::Bool = true,
+        check::Bool = true,
+        z_min = MINIMUM_COMPOSITION,
+        kwarg...
+    )
     z = c.z
     if !isnothing(z_min)
         for i in eachindex(z)
@@ -88,20 +95,21 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
         if isnan(V)
             V = solve_rachford_rice(K, z, V)
         end
-        while !converged
+        while true
             V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i)
             converged = ϵ ≤ tolerance
-            if converged
+            if converged || i == maxiter
                 if verbose
-                    @info "Flash done in $i iterations." V K
+                    @info "Flash done in $i iterations." V K converged
+                end
+                if check && !converged
+                    @warn "Flash did not converge in $i iterations. Final ϵ = $ϵ > $tolerance = tolerance" c
+                    if !isfinite(V)
+                        # Hard error
+                        error("Bad vapor fraction from flash")
+                    end
                 end
                 break
-            end
-            if check && i == maxiter
-                @warn "Flash did not converge in $i iterations. Final ϵ = $ϵ > $tolerance = tolerance" c
-                if !isfinite(V)
-                    error("Bad vapor fraction from flash")
-                end
             end
             i += 1
         end
