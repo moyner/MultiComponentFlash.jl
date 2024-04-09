@@ -76,7 +76,7 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
             @inbounds z[i] = max(z[i], z_min)
         end
     end
-    @assert all(isfinite, K)
+    @assert all(isfinite, K) "K values must be finite: K = $K"
     forces = storage.forces
     if update_forces
         force_coefficients!(forces, eos, c)

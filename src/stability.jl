@@ -12,7 +12,13 @@ function stability_2ph(eos, c, K = initial_guess_K(eos, c); kwarg...)
     stability_2ph!(storage, K, eos, c)
 end
 
-function stability_2ph!(storage, K, eos, c; verbose = false, kwarg...)
+function stability_2ph!(storage, K, eos, c;
+        verbose::Bool = false,
+        extra_out::Bool = false,
+        check_vapor::Bool = true,
+        check_liquid::Bool = true,
+        kwarg...
+    )
     forces = storage.forces
     f_z = storage.buffer1
     f_xy = storage.buffer2
@@ -22,10 +28,21 @@ function stability_2ph!(storage, K, eos, c; verbose = false, kwarg...)
     vapor = (p = p, T = T, z = y)
     # Update fugacities for current conditions used in both tests
     mixture_fugacities!(f_z, eos, c, forces)
-    wilson_estimate!(K, eos, p, T)
-    stable_vapor, i_v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true); kwarg...)
-    wilson_estimate!(K, eos, p, T)
-    stable_liquid, i_l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false); kwarg...)
+    if check_vapor
+        wilson_estimate!(K, eos, p, T)
+        v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true); kwarg...)
+    else
+        v = (true, true, 0)
+    end
+    stable_vapor, trivial_vapor, i_v = v
+    if check_liquid
+        wilson_estimate!(K, eos, p, T)
+        l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false); kwarg...)
+    else
+        l = (true, true, 0)
+    end
+    stable_liquid, trivial_liquid, i_l = l
+    # Conclude based on both.
     stable = stable_vapor && stable_liquid
     if !stable
         @. K = y/x
@@ -33,7 +50,16 @@ function stability_2ph!(storage, K, eos, c; verbose = false, kwarg...)
     if verbose
         @info "Stability done. Iterations:\nV: $i_v\nL: $i_l" stable_vapor stable_liquid stable
     end
-    return stable
+    if extra_out
+        out = (
+            stable = stable,
+            vapor = (stable = stable_vapor, trivial = trivial_vapor),
+            liquid = (stable = stable_liquid, trivial = trivial_liquid),
+        )
+    else
+        out = stable
+    end
+    return out
 end
 
 f_ratio(f_z, f_xy, ::Val{true}) = f_z/f_xy
@@ -88,5 +114,5 @@ function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, insid
         end
     end
     stable = trivial || S <= 1 + tol_trivial
-    return (stable, iter)
+    return (stable, trivial, iter)
 end
