@@ -42,8 +42,13 @@ function stability_2ph!(storage, K, eos, c;
         l = (true, true, 0)
     end
     stable_liquid, trivial_liquid, i_l = l
-    # Conclude based on both.
-    stable = stable_vapor && stable_liquid
+    report = StabilityReport(
+        stable_liquid = stable_liquid,
+        trivial_liquid = trivial_vapor,
+        stable_vapor = stable_vapor,
+        trivial_vapor = trivial_vapor
+    )
+    stable = report.stable
     if !stable
         @. K = y/x
     end
@@ -51,17 +56,7 @@ function stability_2ph!(storage, K, eos, c;
         @info "Stability done. Iterations:\nV: $i_v\nL: $i_l" stable_vapor stable_liquid stable
     end
     if extra_out
-        out = (
-            stable = stable,
-            vapor = (
-                stable = stable_vapor,
-                trivial = trivial_vapor
-            ),
-            liquid = (
-                stable = stable_liquid,
-                trivial = trivial_liquid
-            ),
-        )
+        out = (stable, report)
     else
         out = stable
     end

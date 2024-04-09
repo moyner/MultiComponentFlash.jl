@@ -40,3 +40,27 @@ See also: [`flash_2ph!`](@ref), [`SSIFlash`](@ref) [`NewtonFlash`](@ref)
     dMax::Float64 = 0.2
 end
 
+
+struct PhaseStabilityStatus
+    stable::Bool
+    trivial::Bool
+    function PhaseStabilityStatus(stable = false; trivial = stable)
+        return new(stable, trivial && stable)
+    end
+end
+struct StabilityReport
+    stable::Bool
+    liquid::PhaseStabilityStatus
+    vapor::PhaseStabilityStatus
+    function StabilityReport(;
+            stable_liquid::Bool = false,
+            trivial_liquid::Bool = stable_liquid,
+            stable_vapor::Bool = false,
+            trivial_vapor::Bool = stable_vapor,
+        )
+        new(stable_liquid && stable_vapor,
+            PhaseStabilityStatus(stable_liquid, trivial = trivial_liquid),
+            PhaseStabilityStatus(stable_vapor, trivial = trivial_vapor)
+        )
+    end
+end
