@@ -82,8 +82,14 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
         force_coefficients!(forces, eos, c)
     end
     single_phase_init = isnan(V) || V == 1.0 || V == 0.0
+    srep = missing
     if single_phase_init
-        stable = stability_2ph!(storage, K, eos, c, maxiter = maxiter, verbose = verbose; kwarg...)
+        stable, srep = stability_2ph!(storage, K, eos, c;
+            maxiter = maxiter,
+            verbose = verbose,
+            extra_out = true,
+            kwarg...
+        )
     else
         stable = false
     end
@@ -115,7 +121,7 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
         end
     end
     if extra_out
-        return (V, K, (its = i, converged = converged))
+        return (V, K, (its = i, converged = converged, stability = srep))
     else
         return V
     end

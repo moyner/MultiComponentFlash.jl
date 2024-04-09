@@ -53,8 +53,14 @@ function stability_2ph!(storage, K, eos, c;
     if extra_out
         out = (
             stable = stable,
-            vapor = (stable = stable_vapor, trivial = trivial_vapor),
-            liquid = (stable = stable_liquid, trivial = trivial_liquid),
+            vapor = (
+                stable = stable_vapor,
+                trivial = trivial_vapor
+            ),
+            liquid = (
+                stable = stable_liquid,
+                trivial = trivial_liquid
+            ),
         )
     else
         out = stable
