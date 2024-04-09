@@ -134,11 +134,7 @@ function michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
     z = S.z
     B = S.B
     forces = S.forces
-    for i in eachindex(mole_numbers, z)
-        z[i] += mole_numbers[i] - z[i].value
-    end
-    zt = sum(z)
-    @. z /= zt
+    z = mole_fraction_from_mole_numbers_with_ad!(z, mole_numbers)
     c = (p = p, T = T, z = z)
     forces = force_coefficients!(forces, eos, c)
     scalars = force_scalars(eos, c, forces)
@@ -152,4 +148,14 @@ function michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
         end
     end
     return eigmin(B)
+end
+
+function mole_fraction_from_mole_numbers_with_ad!(z::AbstractVector{ForwardDiff.Dual{T, V, N}}, mole_numbers) where {T, V, N}
+    for i in 1:N
+        ∂ = ForwardDiff.single_seed(ForwardDiff.Partials{N, V}, Val(i))
+        z[i] = ForwardDiff.Dual{T, V, N}(mole_numbers[i], ∂)
+    end
+    zt = sum(z)
+    @. z /= zt
+    return z
 end
