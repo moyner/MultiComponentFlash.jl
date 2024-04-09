@@ -41,8 +41,10 @@ struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
     liquid::FlashedPhase{T, A}
     vapor::FlashedPhase{T, A}
     critical_distance::Float64
-    function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t, liquid, vapor; vec_type = Vector{V_t}, critical_distance = NaN) where {V_t, K_t}
-        new{V_t, vec_type, K_t}(state, K, V, liquid, vapor, critical_distance)
+    p::Float64
+    T::Float64
+    function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t, liquid, vapor; vec_type = Vector{V_t}, critical_distance = NaN, p = NaN, T = NaN) where {V_t, K_t}
+        new{V_t, vec_type, K_t}(state, K, V, liquid, vapor, critical_distance, p, T)
     end
 end
 
@@ -59,18 +61,18 @@ function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F}}, mixture::Fl
     return converted_mixture
 end
 
-function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V, b = NaN)
+function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V, b = NaN, p = NaN, Temp = NaN)
     liquid = FlashedPhase(x, Z_L)
     vapor = FlashedPhase(y, Z_V)
-    return FlashedMixture2Phase(state, K, V, liquid, vapor, critical_distance = b)
+    return FlashedMixture2Phase(state, K, V, liquid, vapor, critical_distance = b, p = p, T = Temp)
 end
 
-function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64, b = NaN)
+function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64, b = NaN, p = NaN, Temp = NaN)
     n = number_of_components(eos)
     V = zero(T)
     # K values are always doubles
     K = zeros(T_num, n)
     liquid = FlashedPhase(n, T)
     vapor = FlashedPhase(n, T)
-    return FlashedMixture2Phase(unknown_phase_state_lv, K, V, liquid, vapor, critical_distance = b)
+    return FlashedMixture2Phase(unknown_phase_state_lv, K, V, liquid, vapor, critical_distance = b, p = p, T = Temp)
 end
