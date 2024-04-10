@@ -147,7 +147,7 @@ function michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
             B[i, j] = (i == j) + sqrt(n_i*n_j)*(f_i.partials[j])
         end
     end
-    return eigmin(B)
+    return minimum(eigvals!(B))
 end
 
 function mole_fraction_from_mole_numbers_with_ad!(z::AbstractVector{ForwardDiff.Dual{T, V, N}}, mole_numbers) where {T, V, N}
