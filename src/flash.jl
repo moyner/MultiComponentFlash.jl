@@ -412,14 +412,11 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     Z_l, s_l = prep(eos, liquid, forces,:liquid)
     Z_v, s_v = prep(eos, vapor, forces,:vapor)
 
-    if isa(V, ForwardDiff.Dual)
-        np = length(V.partials)
-    else
-        np = length(p.partials)
-    end
+    p, V = Base.promote(p, V)
+    np = length(V.partials)
     # Isofugacity constraint
     # f_li - f_vi ∀ i
-    @inbounds for c in 1:n
+    @inbounds for c in eachindex(z)
         f_l = component_fugacity(eos, liquid, c, Z_l, forces, s_l)
         f_v = component_fugacity(eos, vapor, c, Z_v, forces, s_v)
         Δf = f_l - f_v
@@ -433,9 +430,9 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     # x_i*(1-V) - V*y_i - z_i = 0 ∀ i
     # Σ_i x_i - y_i = 0
     T = Base.promote_type(eltype(x), eltype(y))
-    L = 1 - V
+    L = one(T) - V
     Σxy = zero(T)
-    @inbounds for c in 1:n
+    @inbounds for c in eachindex(z)
         xc, yc = x[c], y[c]
         Σxy += (xc - yc)
         M = L*xc + V*yc - z[c]
