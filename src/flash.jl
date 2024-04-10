@@ -76,21 +76,23 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
             @inbounds z[i] = max(z[i], z_min)
         end
     end
-    @assert all(isfinite, K) "K values must be finite: K = $K"
     forces = storage.forces
     if update_forces
         force_coefficients!(forces, eos, c)
     end
     single_phase_init = isnan(V) || V == 1.0 || V == 0.0
-    srep = missing
     if single_phase_init
-        stable, srep = stability_2ph!(storage, K, eos, c;
+        stable, stability_report = stability_2ph!(storage, K, eos, c;
             maxiter = maxiter,
             verbose = verbose,
             extra_out = true,
             kwarg...
         )
     else
+        # We check this here - if the stability test is performed, K is
+        # already overwritten with a reasonable finite initial guess.
+        @assert all(isfinite, K) "K values must be finite: K = $K"
+        stability_report = StabilityReport(stable_liquid = false, stable_vapor = false)
         stable = false
     end
     converged = false
@@ -121,7 +123,7 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
         end
     end
     if extra_out
-        return (V, K, (its = i, converged = converged, stability = srep))
+        return (V, K, (its = i, converged = converged, stability = stability_report))
     else
         return V
     end
