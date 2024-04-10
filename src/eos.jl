@@ -272,14 +272,14 @@ end
 """
 Fugacity
 """
-function component_fugacity_coefficient(eos::AbstractCubicEOS, cond, i, Z, forces, scalars)
+Base.@propagate_inbounds function component_fugacity_coefficient(eos::AbstractCubicEOS, cond, i, Z, forces, scalars)
     # NOTE: This returns ln(ψ), not ψ!
     m1 = eos.m_1
     m2 = eos.m_2
     return component_fugacity_coefficient_cubic(m1, m2, cond.z, Z, scalars.A, scalars.B, forces.A_ij, forces.B_i, i)
 end
 
-function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)
+Base.@propagate_inbounds function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)
     Δm = m1 - m2
     T = promote_type(eltype(x), eltype(A_mat))
     A_s = zero(T)
