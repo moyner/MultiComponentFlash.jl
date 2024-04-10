@@ -59,7 +59,16 @@ Remaining arguments documented in [`flash_2ph`](@ref).
 - `update_forces = true`: Update the `p, T` dependent forces in storage initially.
 
 """
-function flash_2ph!(storage, K, eos, c, V = NaN;
+function flash_2ph!(arg...; extra_out = false, kwarg...)
+    out = flash_2ph_impl!(arg...; kwarg...)
+    if extra_out
+        return out
+    else
+        return out[1]
+    end
+end
+
+function flash_2ph_impl!(storage, K, eos, c, V = NaN;
         method = SSIFlash(),
         verbose::Bool = false,
         maxiter::Int = 20000,
@@ -122,11 +131,7 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
             i += 1
         end
     end
-    if extra_out
-        return (V, K, (its = i, converged = converged, stability = stability_report))
-    else
-        return V
-    end
+    return (V, K, (its = i, converged = converged, stability = stability_report))
 end
 
 """
