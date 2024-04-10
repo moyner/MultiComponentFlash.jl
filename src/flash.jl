@@ -31,7 +31,7 @@ Two outcomes are possible:
 
 See also: [`flash_2ph!`](@ref), [`single_phase_label`](@ref)
 """
-function flash_2ph(eos, c::T, K = initial_guess_K(eos, c); method = SSIFlash(), kwarg...) where T
+function flash_2ph(eos, c::T, K = initial_guess_K(eos, c), V = NaN; method = SSIFlash(), kwarg...) where T
     nc = number_of_components(eos)
     @assert hasfield(T, :p)
     @assert hasfield(T, :T)
@@ -41,7 +41,7 @@ function flash_2ph(eos, c::T, K = initial_guess_K(eos, c); method = SSIFlash(), 
     method::AbstractFlash
 
     S = flash_storage(eos, c, method = method)
-    flash_2ph!(S, K, eos, c, update_forces = false; method = method, kwarg...)
+    flash_2ph!(S, K, eos, c, V, update_forces = false; method = method, kwarg...)
 end
 
 """
