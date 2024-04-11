@@ -48,6 +48,18 @@ struct PhaseStabilityStatus
         return new(stable, trivial && stable)
     end
 end
+
+function Base.show(io::IOContext, sr::PhaseStabilityStatus)
+    compact = get(io, :compact, false)
+    s = sr.stable ? "single-phase" : "two-phase"
+    e = sr.trivial ? ", trivial" : ""
+    if compact
+        print(io, s)
+    else
+        print(io, "PhaseStabilityStatus ($s$e)")
+    end
+end
+
 struct StabilityReport
     stable::Bool
     liquid::PhaseStabilityStatus
@@ -62,5 +74,17 @@ struct StabilityReport
             PhaseStabilityStatus(stable_liquid, trivial = trivial_liquid),
             PhaseStabilityStatus(stable_vapor, trivial = trivial_vapor)
         )
+    end
+end
+
+function Base.show(io::IOContext, sr::StabilityReport)
+    compact = get(io, :compact, false)
+    s = sr.stable ? "single-phase" : "two-phase"
+    ls = sr.liquid.stable ? "stable" : "unstable"
+    vs = sr.vapor.stable ? "stable" : "unstable"
+    if compact
+        print(io, s)
+    else
+        print(io, "StabilityReport ($s, liquid = $ls, vapor = $vs)")
     end
 end

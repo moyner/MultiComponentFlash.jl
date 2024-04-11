@@ -116,20 +116,22 @@ we see that the vapor phase is almost entirely made up of the lighter methane at
 
 ## Changing the solution algorithm to Newton
 
-If we examine the third output, we can see output about number of iterations and a verification that the flash converged within the default tolerance:
+If we examine the third output, we can see output about number of iterations, the result of the phase stability test and a verification that the flash converged within the default tolerance:
 
 ```jldoctest
 julia> report
-(its = 8, converged = true)
+(its = 8, converged = true, stability = StabilityReport (two-phase, liquid = stable, vapor = unstable))
 ```
 
-The default method is the `SSIFlash()` method. The name is an abbreviation for successive-substitution, a simple but very robust method.
+Here, we can see that forming a second vapor-like phase led to the solver to conclude that the mixture is two-phase.
+
+The default flash method is the `SSIFlash()` method. The name is an abbreviation for successive-substitution, a simple but very robust method.
 
 We could alternatively switch to `NewtonFlash()` to use Newton's method with AD instead to reduce the number of iterations:
 
 ```jldoctest
 julia> V, K, report = flash_2ph(eos, conditions, extra_out = true, method = NewtonFlash()); report
-(its = 5, converged = true)
+(its = 5, converged = true, stability = StabilityReport (two-phase, liquid = stable, vapor = unstable))
 ```
 
-It is also possible to use `SSINewtonFlash()` that switches from SSI to Newton after a prescribed number of iterations, which is effective around the critical region where SSI has slow convergence.
+Note that Newton's method is not unconditionally stable: It is therefore also possible to use `SSINewtonFlash()` that switches from SSI to Newton after a prescribed number of iterations, which is effective around the critical region where SSI has slow convergence.
