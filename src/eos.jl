@@ -25,7 +25,7 @@ end
 
 # PengRobinson specialization
 function static_coefficients(::AbstractPengRobinson)
-    return (0.457235529, 0.077796074, 1 + sqrt(2), 1 - sqrt(2))
+    return (0.457235529, 0.077796074, 1.0 + sqrt(2), 1.0 - sqrt(2))
 end
 
 function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:AbstractPengRobinson
@@ -33,7 +33,8 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:AbstractPengRobins
     m = molecular_property(mix, i)
     a = acentric_factor(m)
     T_r = reduced_temperature(mix, cond, i)
-    return eos.ω_a*(1 + (0.37464 + 1.54226*a - 0.26992*a^2)*(1-T_r^(1/2)))^2;
+    tmp = (1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5))
+    return eos.ω_a*(tmp*tmp)
 end
 
 function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
@@ -41,14 +42,16 @@ function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
     m = molecular_property(mix, i)
     a = acentric_factor(m)
     T_r = reduced_temperature(mix, cond, i)
+    aa = a*a
     if a > 0.49
         # Use alternate expression.
-        D = (0.379642 + 1.48503*a - 0.164423*a^2 + 0.016666*a^3)
+        D = (0.379642 + 1.48503*a - 0.164423*aa + 0.016666*a*aa)
     else
         # Use standard expression.
-        D = (0.37464 + 1.54226*a - 0.26992*a^2)
+        D = (0.37464 + 1.54226*a - 0.26992*aa)
     end
-    return eos.ω_a*(1 + D*(1-T_r^(1/2)))^2;
+    tmp = 1.0 + D*(1.0-T_r^0.5)
+    return eos.ω_a*(tmp*tmp);
 end
 
 # ZudkevitchJoffe
@@ -57,7 +60,7 @@ function weight_ai(eos::GenericCubicEOS{ZudkevitchJoffe}, cond, i)
     mix = eos.mixture
     T = cond.T
     T_r = reduced_temperature(mix, cond, i)
-    return eos.ω_a*zj.F_a(T, i)*T_r^(-1/2)
+    return eos.ω_a*zj.F_a(T, i)*T_r^(-0.5)
 end
 
 function weight_bi(eos::GenericCubicEOS{ZudkevitchJoffe}, cond, i)
@@ -272,14 +275,14 @@ end
 """
 Fugacity
 """
-function component_fugacity_coefficient(eos::AbstractCubicEOS, cond, i, Z, forces, scalars)
+Base.@propagate_inbounds function component_fugacity_coefficient(eos::AbstractCubicEOS, cond, i, Z, forces, scalars)
     # NOTE: This returns ln(ψ), not ψ!
     m1 = eos.m_1
     m2 = eos.m_2
     return component_fugacity_coefficient_cubic(m1, m2, cond.z, Z, scalars.A, scalars.B, forces.A_ij, forces.B_i, i)
 end
 
-function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)
+Base.@propagate_inbounds function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)
     Δm = m1 - m2
     T = promote_type(eltype(x), eltype(A_mat))
     A_s = zero(T)

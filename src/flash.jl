@@ -31,7 +31,7 @@ Two outcomes are possible:
 
 See also: [`flash_2ph!`](@ref), [`single_phase_label`](@ref)
 """
-function flash_2ph(eos, c::T, K = initial_guess_K(eos, c); method = SSIFlash(), kwarg...) where T
+function flash_2ph(eos, c::T, K = initial_guess_K(eos, c), V = NaN; method = SSIFlash(), kwarg...) where T
     nc = number_of_components(eos)
     @assert hasfield(T, :p)
     @assert hasfield(T, :T)
@@ -41,7 +41,7 @@ function flash_2ph(eos, c::T, K = initial_guess_K(eos, c); method = SSIFlash(), 
     method::AbstractFlash
 
     S = flash_storage(eos, c, method = method)
-    flash_2ph!(S, K, eos, c, update_forces = false; method = method, kwarg...)
+    flash_2ph!(S, K, eos, c, V, update_forces = false; method = method, kwarg...)
 end
 
 """
@@ -59,25 +59,49 @@ Remaining arguments documented in [`flash_2ph`](@ref).
 - `update_forces = true`: Update the `p, T` dependent forces in storage initially.
 
 """
-function flash_2ph!(storage, K, eos, c, V = NaN;
-                                method = SSIFlash(), verbose = false, maxiter = 20000,
-                                tolerance = 1e-8, extra_out = false, update_forces = true,
-                                check = true, z_min = MINIMUM_COMPOSITION, kwarg...)
+function flash_2ph!(arg...; extra_out = false, kwarg...)
+    out = flash_2ph_impl!(arg...; kwarg...)
+    if extra_out
+        return out
+    else
+        return out[1]
+    end
+end
+
+function flash_2ph_impl!(storage, K, eos, c, V = NaN;
+        method = SSIFlash(),
+        verbose::Bool = false,
+        maxiter::Int = 20000,
+        tolerance::Float64 = 1e-8,
+        extra_out::Bool = false,
+        update_forces::Bool = true,
+        check::Bool = true,
+        z_min = MINIMUM_COMPOSITION,
+        kwarg...
+    )
     z = c.z
     if !isnothing(z_min)
         for i in eachindex(z)
             @inbounds z[i] = max(z[i], z_min)
         end
     end
-    @assert all(isfinite, K)
     forces = storage.forces
     if update_forces
         force_coefficients!(forces, eos, c)
     end
     single_phase_init = isnan(V) || V == 1.0 || V == 0.0
     if single_phase_init
-        stable = stability_2ph!(storage, K, eos, c, maxiter = maxiter, verbose = verbose; kwarg...)
+        stable, stability_report = stability_2ph!(storage, K, eos, c;
+            maxiter = maxiter,
+            verbose = verbose,
+            extra_out = true,
+            kwarg...
+        )
     else
+        # We check this here - if the stability test is performed, K is
+        # already overwritten with a reasonable finite initial guess.
+        @assert all(isfinite, K) "K values must be finite: K = $K"
+        stability_report = StabilityReport(stable_liquid = false, stable_vapor = false)
         stable = false
     end
     converged = false
@@ -88,29 +112,26 @@ function flash_2ph!(storage, K, eos, c, V = NaN;
         if isnan(V)
             V = solve_rachford_rice(K, z, V)
         end
-        while !converged
+        while true
             V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i)
             converged = ϵ ≤ tolerance
-            if converged
+            if converged || i == maxiter
                 if verbose
-                    @info "Flash done in $i iterations." V K
+                    @info "Flash done in $i iterations." V K converged
+                end
+                if check && !converged
+                    @warn "Flash did not converge in $i iterations. Final ϵ = $ϵ > $tolerance = tolerance" c
+                    if !isfinite(V)
+                        # Hard error
+                        error("Bad vapor fraction from flash")
+                    end
                 end
                 break
-            end
-            if check && i == maxiter
-                @warn "Flash did not converge in $i iterations. Final ϵ = $ϵ > $tolerance = tolerance" c
-                if !isfinite(V)
-                    error("Bad vapor fraction from flash")
-                end
             end
             i += 1
         end
     end
-    if extra_out
-        return (V, K, (its = i, converged = converged))
-    else
-        return V
-    end
+    return (V, K, (its = i, converged = converged, stability = stability_report))
 end
 
 """
@@ -391,14 +412,11 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     Z_l, s_l = prep(eos, liquid, forces,:liquid)
     Z_v, s_v = prep(eos, vapor, forces,:vapor)
 
-    if isa(V, ForwardDiff.Dual)
-        np = length(V.partials)
-    else
-        np = length(p.partials)
-    end
+    p, V = Base.promote(p, V)
+    np = length(V.partials)
     # Isofugacity constraint
     # f_li - f_vi ∀ i
-    @inbounds for c in 1:n
+    @inbounds for c in eachindex(z)
         f_l = component_fugacity(eos, liquid, c, Z_l, forces, s_l)
         f_v = component_fugacity(eos, vapor, c, Z_v, forces, s_v)
         Δf = f_l - f_v
@@ -412,9 +430,9 @@ function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     # x_i*(1-V) - V*y_i - z_i = 0 ∀ i
     # Σ_i x_i - y_i = 0
     T = Base.promote_type(eltype(x), eltype(y))
-    L = 1 - V
+    L = one(T) - V
     Σxy = zero(T)
-    @inbounds for c in 1:n
+    @inbounds for c in eachindex(z)
         xc, yc = x[c], y[c]
         Σxy += (xc - yc)
         M = L*xc + V*yc - z[c]
