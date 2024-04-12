@@ -64,7 +64,6 @@ function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F}}, mixture::Fl
 
     to_T = x -> convert(T, x)
     V = to_T(mixture.V)
-    # Kv = map(to_T, mixture.K)
     Kv = mixture.K
     converted_mixture = FlashedMixture2Phase(
         mixture.state,
@@ -74,7 +73,7 @@ function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F}}, mixture::Fl
         vapor;
         vec_type = Vector{T},
         critical_distance = mixture.critical_distance,
-        cond = mixture.cond,
+        cond = mixture.flash_cond,
         stability_report = mixture.flash_stability
     )
     return converted_mixture
