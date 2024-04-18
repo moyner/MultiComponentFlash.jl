@@ -66,7 +66,7 @@ function set_partials(v::Dual{T,V,N}, M, buf, p, temp, z, index) where {T,V,N}
     if eltype(z)<:Dual
         set_partials_vector!(buf, z, M, index, 2)
     end
-    ∂ = Partials{N, V}(Tuple(buf))
+    ∂ = Partials{N, V}(Tuple(buf[1:N]))
     val = value(v)
     return Dual{T, V, N}(val, ∂)
 end
@@ -74,7 +74,7 @@ end
 set_partials_scalar!(buf, X::AbstractFloat, M, index, pos) = nothing
 
 function set_partials_scalar!(buf, X::ForwardDiff.Dual{T,V,N}, M, index, pos) where {T, V, N}
-    @inbounds @. buf -= M[index, pos]*X.partials
+    @inbounds @. buf[1:N] -= M[index, pos]*X.partials
 end
 
 set_partials_vector!(buf, z, M, index, offset) = nothing
