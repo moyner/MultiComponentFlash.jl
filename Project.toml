@@ -1,7 +1,7 @@
 name = "MultiComponentFlash"
 uuid = "35e5bd01-9722-4017-9deb-64a5d32478ff"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "1.1.13"
+version = "1.1.14"
 
 [deps]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
