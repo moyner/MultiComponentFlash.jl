@@ -100,7 +100,7 @@ end
 end
 
 "Compute molar volume of a flashed phase"
-@inline function molar_volume(eos, p, T, ph::FlashedPhase) 
+@inline function molar_volume(eos, p, T, ph::FlashedPhase)
     V = molar_volume(IDEAL_GAS_CONSTANT, p, T, ph.Z)
     V = correct_volume(V, eos, p, T, ph, eos.volume_shift)
     return V
@@ -115,8 +115,8 @@ function correct_volume(V, eos, p, T, ph, volume_shift)
         prp = molecular_property(eos.mixture, i)
         T_ci = critical_temperature(prp)
         P_ci = critical_pressure(prp)
-        ω_bi = weight_bi(eos, cond, i);
-        c += volume_shift[i]*xy[i]*ω_bi*R*T_ci/P_ci 
+        ω_bi = weight_bi(eos, cond, i)
+        c += volume_shift[i]*xy[i]*ω_bi*R*T_ci/P_ci
     end
     return V - c
 end
@@ -142,20 +142,20 @@ Compute mass densities for a flashed two-phase mixture.
 
 Always returns a named tuple of (ρ_l, ρ_v), even if the mixture is single-phase.
 
-The value in the absent phase will be zero.
+The value in the absent phase will be that of the present phase for single-phase conditions.
 """
 @inline function mass_densities(eos, p, temperature, f::FlashedMixture2Phase{T}) where T
     state = f.state
     # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute densities. Has flash been called?."
-    if liquid_phase_present(state)
+    has_liquid = liquid_phase_present(state)
+    has_vapor = vapor_phase_present(state)
+    if has_liquid && has_vapor
         l = mass_density(eos, p, temperature, f.liquid)::T
-    else
-        l = zero(T)
-    end
-    if vapor_phase_present(state)
         v = mass_density(eos, p, temperature, f.vapor)::T
+    elseif has_liquid
+        l = v = mass_density(eos, p, temperature, f.liquid)::T
     else
-        v = zero(T)
+        l = v = mass_density(eos, p, temperature, f.vapor)::T
     end
     return (ρ_l = l::T, ρ_v = v::T)
 end
@@ -167,22 +167,20 @@ Compute phase viscosities for a flashed two-phase mixture using the LBC correlat
 
 Always returns a named tuple of (μ_l, μ_v), even if the mixture is single-phase.
 
-The value in the absent phase will be a tiny value (eps of the numeric type) to make
-division for mobilities etc. safe.
+The value in the absent phase will be that of the present phase for single-phase conditions.
 """
 @inline function lbc_viscosities(eos, p, temperature, f::FlashedMixture2Phase{T}) where T
     state = f.state
     # @assert state != unknown_phase_state_lv "Phase state is not known. Cannot compute viscosities. Has flash been called?."
-    if liquid_phase_present(state)
+    has_liquid = liquid_phase_present(state)
+    has_vapor = vapor_phase_present(state)
+    if has_liquid && has_vapor
         l = lbc_viscosity(eos, p, temperature, f.liquid)::T
-    else
-        l = convert(T, eps(T))
-    end
-    if vapor_phase_present(state)
         v = lbc_viscosity(eos, p, temperature, f.vapor)::T
+    elseif has_liquid
+        l = v = lbc_viscosity(eos, p, temperature, f.liquid)::T
     else
-        v = convert(T, eps(T))
+        l = v = lbc_viscosity(eos, p, temperature, f.vapor)::T
     end
     return (μ_l = l::T, μ_v = v::T)
 end
-
