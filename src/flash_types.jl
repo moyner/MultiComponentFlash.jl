@@ -4,20 +4,21 @@ abstract type AbstractFlash end
 abstract type AbstractNewtonFlash <: AbstractFlash end
 
 """
-Flash method that uses successive subtition.
+    ssi = SSIFlash()
 
-Unconditionally convergent, does not require derivatives, but is very slow around critical regions.
+Flash method that uses successive subtition. Unconditionally convergent, does
+not require derivatives, but is very slow around critical regions.
 
 See also: [`flash_2ph!`](@ref), [`NewtonFlash`](@ref) [`SSINewtonFlash`](@ref)
 """
 struct SSIFlash <: AbstractFlash end
 
 """
-    NewtonFlash([dMax = 0.2])
+    newton = NewtonFlash()
+    newton = NewtonFlash(dMax = 0.2)
 
-Flash using Newton's method for zero solve.
-
-Only conditionally convergent, but has better convergence rate than SSI.
+Flash using Newton's method for zero solve. Only conditionally convergent, but
+has better convergence rate than SSI.
 
 # Arguments
 - `dMax`: dampening factor for the newton iteration
@@ -29,7 +30,8 @@ See also: [`flash_2ph!`](@ref), [`SSIFlash`](@ref) [`SSINewtonFlash`](@ref)
 end
 
 """
-    SSINewtonFlash([swap_iter = 5,dMax = 0.2])
+    ssi_newton = SSINewtonFlash(
+    ssi_newton = SSINewtonFlash(swap_iter = 5, dMax = 0.2)
 
 Perform a number of SSI iterations, followed by Newton until convergence.
 
