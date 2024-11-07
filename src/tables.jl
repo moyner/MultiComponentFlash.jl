@@ -1,3 +1,26 @@
+function property_abbreviations()
+    abbreviations = Dict(
+        "CO2" => "CarbonDioxide",
+        "H2O" => "Water",
+        "O2" => "Oxygen",
+        "H2" => "Hydrogen",
+        "N2" => "Nitrogen",
+        "C1" => "Methane",
+        "C2" => "Ethane",
+        "C3" => "n-Propane",
+        "C4" => "n-Butane",
+        "C5" => "n-Pentane",
+        "C6" => "n-Hexane",
+        "C7" => "n-Heptane",
+        "C8" => "n-Octane",
+        "C9" => "n-Nonane",
+        "C10" => "n-Decane",
+        "C11" => "n-Undecane",
+        "C12" => "n-Dodecane"
+    )
+    return abbreviations
+end
+
 function tabulated_properties()
     # Various properties. Taken from CoolProp.
     data = Dict{String, MolecularProperty}()
@@ -123,6 +146,10 @@ function tabulated_properties()
     data["R407C"] = MolecularProperty(0.0862036, 4631700, 359.345, 0.0001901140668, 0.363)
     data["R41"] = MolecularProperty(0.03403292, 5897000, 317.28, 0.0001075268817, 0.2004)
     data["R410A"] = MolecularProperty(0.0725854, 4901200, 344.494, 0.0001581277672, 0.296)
+
+    for (shortname, fullname) in pairs(property_abbreviations())
+        data[shortname] = data[fullname]
+    end
     return data
 end
 
