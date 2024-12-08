@@ -71,7 +71,7 @@ end
 function flash_2ph_impl!(storage, K, eos, c, V = NaN;
         method = SSIFlash(),
         verbose::Bool = false,
-        maxiter::Int = 20000,
+        maxiter::Int = 25000,
         tolerance::Float64 = 1e-8,
         extra_out::Bool = false,
         update_forces::Bool = true,

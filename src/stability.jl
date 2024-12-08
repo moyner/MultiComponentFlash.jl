@@ -74,7 +74,11 @@ xy_value(z, K, ::Val{false}) = z/K
 In-place version of [`stability_2ph`](@ref). `storage` should be allocated by `flash_storage`.
 """
 function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, inside_is_vapor;
-    tol_equil = 1e-10, tol_trivial = 1e-5, maxiter = 1000)
+        tol_equil = 1e-10,
+        tol_trivial = tol_equil,
+        tol_sat = tol_trivial,
+        maxiter = 1000
+    )
     trivial = false
     S = 1.0
     iter = 0
@@ -114,6 +118,6 @@ function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, insid
             @warn "Stability test failed to converge in $maxiter iterations. Assuming stability." cond xy K_norm R_norm K
         end
     end
-    stable = trivial || S <= 1 + tol_trivial
+    stable = trivial || S <= 1.0 + tol_sat
     return (stable, trivial, iter)
 end
