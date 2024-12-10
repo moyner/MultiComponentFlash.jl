@@ -329,8 +329,10 @@ end
 ##
 function mixture_enthalpy!(H, eos, cond, forces = force_coefficients(eos, cond), scalars = force_scalars(eos, cond, forces))
     Z = mixture_compressibility_factor(eos, cond, forces, scalars)
-    # Cp  -> Array with 4 Heat Capacity Coefficients for calculating
-    #         Ex: Cp = [1 1 1 1] coeficients of the polynomial used to compute idealeEnthalpy of the component
+#        Cp  -> Matrix nc x 4.
+#                   nc = number of components
+#                   Each line has  4 coeficients for calculating the ideal enthalpy of a component
+#                   
     # Hp phase enthalpy entha vector 1x n_phases 
     # for each phase
     @inbounds for i in eachindex(H)

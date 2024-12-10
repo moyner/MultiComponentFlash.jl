@@ -14,17 +14,37 @@ end
 function enthalpy_ideal(T,T_r, Cp)
 # Input: T   -> Current Temperature, 
 #        T_r -> Reference Temperature 
-#        Cp  -> Array with 4 Heat Capacity Coefficients
-# # Ex: Cp = [1 1 1 1] coeficients of the polynomial used to compute idealeEnthalpy of the component
+#        Cp  -> Matrix nc x 4. The coeficients 
+#                   nc = number of components
+#                   each component needs   with 4 Heat Capacity Coefficients
+
+nc, _ = size(Cp)
+h_c = 0.0;
+
+# Output: Ideal Mixture Enthalpy
+    p_exp = collect(1:4)
+    for i = 0:nc
+        # x_c -> fraction of c in a given phase
+        h_c = h_c + (x_c) * enthalpy_ideal_component(T,T_r, Cp[i,:]);
+    end
+    return hc
+end
+
+function enthalpy_ideal_component(T,T_r, cp)
+# Input: T   -> Current Temperature, 
+#        T_r -> Reference Temperature 
+#        Cp  -> Matrix 1 x 4. The coeficients 
+#                   nc = number of components
+#                   each component needs   with 4 Heat Capacity Coefficients
 # Output: Ideal Component Enthalpy
     p_exp = collect(1:4)
-    return sum((fill(T,4,).^p_exp  - fill(T_r,4,).^p_exp ).*Cp')
+    return sum((fill(T,4,).^p_exp  - fill(T_r,4,).^p_exp ).*cp')
 end
+
 
 function enthalpy_departure(eos, cond, i, Z, forces, scalars) 
     # Input: T   -> Current Temperature, 
     #        T_r -> Reference Temperature 
-    #        Cp  -> Array with 4 Heat Capacity Coefficients
     # Output: Departure Enthalpy
     # for each component
     #  Hc -> Array n_c components x 1
@@ -40,7 +60,7 @@ function enthalpy_phase(eos, cond, i, Z, forces, scalars, T,T_r, Cp)
     # Input: eos -> Eqution of State
     #        T   -> Current Temperature, 
     #        T_r -> Reference Temperature 
-    #        Cp  -> Array with 4 Heat Capacity Coefficients
+    #        Cp  -> Matrix with  4 Heat Capacity Coefficients
     # Output: Phase Enthalpy
     return enthalpy_ideal(T,T_r, Cp) + enthalpy_departure(eos, cond, i, Z, forces, scalars) 
 end
