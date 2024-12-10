@@ -326,6 +326,21 @@ function mixture_fugacities!(f, eos, cond, forces = force_coefficients(eos, cond
     return f
 end
 
+##
+function mixture_enthalpy!(H, eos, cond, forces = force_coefficients(eos, cond), scalars = force_scalars(eos, cond, forces))
+    Z = mixture_compressibility_factor(eos, cond, forces, scalars)
+    # Cp  -> Array with 4 Heat Capacity Coefficients for calculating
+    #         Ex: Cp = [1 1 1 1] coeficients of the polynomial used to compute idealeEnthalpy of the component
+    # Hp phase enthalpy entha vector 1x n_phases 
+    # for each phase
+    @inbounds for i in eachindex(H)
+        # Phase Enthalpy is the 
+        H[i] = enthalpy_phase(eos, cond, i, Z, forces, scalars, T,T_r, Cp);
+    end
+    return H
+end
+
+
 """
 Specialization of solve_roots for cubics
 """
