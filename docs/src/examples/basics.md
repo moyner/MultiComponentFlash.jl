@@ -97,19 +97,19 @@ round.(K, digits = 5)
 From the chosen overall mole fractions `z`, and the flashed `K`-values together with the vapor fraction `V` we can get the phase mole fractions in the liquid phase:
 
 ```jldoctest
-julia> liquid_mole_fraction.(z, K, V)
+julia> round.(liquid_mole_fraction.(z, K, V), digits = 5)
 2-element Vector{Float64}:
- 0.24247146623483776
- 0.7575285337651623
+ 0.24247
+ 0.75753
 ```
 
 As expected, the liquid phase has more of the heavy component than in the overall mole fractions (0.75 relative to 0.6). If we compute the vapor fractions,
 
 ```jldoctest
-julia> vapor_mole_fraction.(z, K, V)
+julia> round.(vapor_mole_fraction.(z, K, V), digits = 5)
 2-element Vector{Float64}:
- 0.9996430842149211
- 0.000356915785078925
+ 0.99964
+ 0.00036
 ```
 
 we see that the vapor phase is almost entirely made up of the lighter methane at the chosen conditions.
