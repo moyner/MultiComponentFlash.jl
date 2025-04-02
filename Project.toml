@@ -1,7 +1,7 @@
 name = "MultiComponentFlash"
 uuid = "35e5bd01-9722-4017-9deb-64a5d32478ff"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
-version = "1.1.16"
+version = "1.1.17"
 
 [deps]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -10,7 +10,7 @@ Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-ForwardDiff = "0.10"
+ForwardDiff = "0.10, 1"
 Roots = "1, 2"
 StaticArrays = "1"
 LinearAlgebra = "1"
