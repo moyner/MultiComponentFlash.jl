@@ -110,11 +110,33 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
         component_names = mixture_or_cnames
     end
 
-    ai1, ai2, ai3, bi1, bi2, bi3, T_co2, molality = Base.promote(
-        ai1, ai2, ai3, bi1, bi2, bi3, T_co2, molality
+    A1, A2, A3, A_mw1, A_mw2, A_mw3, α1, α2, α3, bic1, bic2, bic3, T_co2, molality = Base.promote(
+        A[1], A[2], A[3], A_mw[1], A_mw[2], A_mw[3],
+        alphas[1], alphas[2], alphas[3],
+        bic_weights[1], bic_weights[2], bic_weights[3],
+        T_co2, molality
     )
-    ai_coefficients = (ai1, ai2, ai3)
-    bic_weights = (bi1, bi2, bi3)
+    A = (A1, A2, A3)
+    A_mw = (A_mw1, A_mw2, A_mw3)
+    alphas = (α1, α2, α3)
+    bic_weights = (bic1, bic2, bic3)
+    component_types = COMPONENT_ENUM[]
+    abbr = property_abbreviations()
+    for cname in component_names
+        cname = get(abbr, cname, cname)
+        lname = lowercase(cname)
+        if lname == "nitrogen"
+            push!(component_types, COMPONENT_ENUM.N2)
+        elseif lname == "water" || lname == "brine"
+            push!(component_types, COMPONENT_ENUM.H2O)
+        elseif lname == "carbondioxide"
+            push!(component_types, COMPONENT_ENUM.CO2)
+        elseif lname == "hydrogensulfide"
+            push!(component_types, COMPONENT_ENUM.H2S)
+        else
+            push!(component_types, COMPONENT_ENUM.OTHER_COMPONENT)
+        end
+    end
 end
 
 
