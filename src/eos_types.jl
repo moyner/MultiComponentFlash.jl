@@ -97,12 +97,9 @@ end
 function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{String}};
         T_co2 = 293.15,
         molality = 0.0,
-        ai1 = missing,
-        ai2 = missing,
-        ai3 = missing,
-        bi1 = missing,
-        bi2 = missing,
-        bi3 = missing
+        A = (1.1120, 1.1001, -0.15742),
+        A_mw = (-1.7369, 0.8360, -1.0988),
+        alphas = (0.017407, 0.033516, 0.011478)
     )
     if mixture_or_cnames isa MultiComponentMixture
         component_names = mixture_or_cnames.component_names
