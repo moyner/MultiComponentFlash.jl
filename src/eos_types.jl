@@ -87,7 +87,9 @@ struct RedlichKwong <: AbstractGeneralizedCubic end
 @enum COMPONENT_ENUM N2 H2O CO2 H2S OTHER_COMPONENT
 
 struct SoreideWhitson{T} <: AbstractPengRobinson
-    ai_coefficients::NTuple{3, T}
+    A::NTuple{3, T}
+    A_mw::NTuple{3, T}
+    alphas::NTuple{3, T}
     bic_weights::NTuple{3, T}
     molality::T
     T_co2::T
@@ -99,7 +101,8 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
         molality = 0.0,
         A = (1.1120, 1.1001, -0.15742),
         A_mw = (-1.7369, 0.8360, -1.0988),
-        alphas = (0.017407, 0.033516, 0.011478)
+        alphas = (0.017407, 0.033516, 0.011478),
+        bic_weights = (0.4530, 1.0 - 0.0103 * molality^1.1, 0.0034)
     )
     if mixture_or_cnames isa MultiComponentMixture
         component_names = mixture_or_cnames.component_names
