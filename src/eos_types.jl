@@ -122,6 +122,7 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
     bic_weights = (bic1, bic2, bic3)
     component_types = COMPONENT_ENUM[]
     abbr = property_abbreviations()
+    water_found = false
     for cname in component_names
         cname = get(abbr, cname, cname)
         lname = lowercase(cname)
@@ -129,6 +130,7 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
             push!(component_types, COMPONENT_ENUM.N2)
         elseif lname == "water" || lname == "brine"
             push!(component_types, COMPONENT_ENUM.H2O)
+            water_found = true
         elseif lname == "carbondioxide"
             push!(component_types, COMPONENT_ENUM.CO2)
         elseif lname == "hydrogensulfide"
@@ -137,6 +139,7 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
             push!(component_types, COMPONENT_ENUM.OTHER_COMPONENT)
         end
     end
+    water_found || error("Water component not found in mixture. Søreide-Whitson EOS requires water to be present.")
     return SoreideWhitson{typeof(A1)}(A, A_mw, alphas, bic_weights, molality, T_co2, component_types)
 end
 
