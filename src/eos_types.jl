@@ -94,8 +94,23 @@ struct SoreideWhitson{T} <: AbstractPengRobinson
     component_types::Vector{COMPONENT_ENUM}
 end
 
-function SoreideWhitson(mixture; T_co2 = 293.15)
-    
+function SoreideWhitson(mixture;
+        T_co2 = 293.15,
+        molality = 0.0,
+        ai1 = missing,
+        ai2 = missing,
+        ai3 = missing,
+        bi1 = missing,
+        bi2 = missing,
+        bi3 = missing
+    )
+
+
+    ai1, ai2, ai3, bi1, bi2, bi3, T_co2, molality = Base.promote(
+        ai1, ai2, ai3, bi1, bi2, bi3, T_co2, molality
+    )
+    ai_coefficients = (ai1, ai2, ai3)
+    bic_weights = (bi1, bi2, bi3)
 end
 
 
