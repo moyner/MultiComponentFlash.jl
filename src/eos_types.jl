@@ -86,6 +86,15 @@ struct RedlichKwong <: AbstractGeneralizedCubic end
 
 @enum COMPONENT_ENUM N2 H2O CO2 H2S OTHER_COMPONENT
 
+"""
+    sw = SoreideWhitson(mixture_or_component_names)
+
+Specialized cubic equation of state for Søreide-Whitson EOS.
+
+See "Peng-Robinson predictions for hydrocarbons, CO2, N2, and H₂S with pure
+water and NaCl brine" by I. Søreide and C. Whitson, Fluid Phase Equilibria 77,
+1992.
+"""
 struct SoreideWhitson{T} <: AbstractPengRobinson
     A::NTuple{3, T}
     A_mw::NTuple{3, T}
