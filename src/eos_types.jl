@@ -137,6 +137,7 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
             push!(component_types, COMPONENT_ENUM.OTHER_COMPONENT)
         end
     end
+    return SoreideWhitson{typeof(A1)}(A, A_mw, alphas, bic_weights, molality, T_co2, component_types)
 end
 
 
