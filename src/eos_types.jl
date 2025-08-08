@@ -83,6 +83,22 @@ Specializes the GenericCubicEOS to the Redlich-Kwong cubic equation of state.
 """
 struct RedlichKwong <: AbstractGeneralizedCubic end
 
+
+@enum COMPONENT_ENUM N2 H2O CO2 H2S OTHER_COMPONENT
+
+struct SoreideWhitson{T} <: AbstractPengRobinson
+    ai_coefficients::NTuple{3, T}
+    bic_weights::NTuple{3, T}
+    molality::T
+    T_co2::T
+    component_types::Vector{COMPONENT_ENUM}
+end
+
+function SoreideWhitson(mixture; T_co2 = 293.15)
+    
+end
+
+
 """
     GenericCubicEOS(mixture)
     GenericCubicEOS(mixture, PengRobinson())
