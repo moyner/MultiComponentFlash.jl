@@ -94,7 +94,7 @@ struct SoreideWhitson{T} <: AbstractPengRobinson
     component_types::Vector{COMPONENT_ENUM}
 end
 
-function SoreideWhitson(mixture;
+function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{String}};
         T_co2 = 293.15,
         molality = 0.0,
         ai1 = missing,
@@ -104,7 +104,11 @@ function SoreideWhitson(mixture;
         bi2 = missing,
         bi3 = missing
     )
-
+    if mixture_or_cnames isa MultiComponentMixture
+        component_names = mixture_or_cnames.component_names
+    else
+        component_names = mixture_or_cnames
+    end
 
     ai1, ai2, ai3, bi1, bi2, bi3, T_co2, molality = Base.promote(
         ai1, ai2, ai3, bi1, bi2, bi3, T_co2, molality
