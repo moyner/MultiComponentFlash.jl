@@ -26,9 +26,9 @@ function stability_2ph!(storage, K, eos, c;
     z, p, T = c.z, c.p, c.T
     liquid = (p = p, T = T, z = x, phase = :liquid)
     vapor = (p = p, T = T, z = y, phase = :vapor)
-    # Update fugacities for current conditions used in both tests
-    mixture_fugacities!(f_z, eos, c, forces)
     if check_vapor
+        current_as_liquid = (p = p, T = T, z = z, phase = :liquid)
+        mixture_fugacities!(f_z, eos, current_as_liquid, forces)
         wilson_estimate!(K, eos, p, T)
         v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true); kwarg...)
     else
@@ -36,6 +36,8 @@ function stability_2ph!(storage, K, eos, c;
     end
     stable_vapor, trivial_vapor, i_v = v
     if check_liquid
+        current_as_vapor = (p = p, T = T, z = z, phase = :vapor)
+        mixture_fugacities!(f_z, eos, current_as_vapor, forces)
         wilson_estimate!(K, eos, p, T)
         l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false); kwarg...)
     else
