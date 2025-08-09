@@ -8,6 +8,9 @@ Return number of components for the underlying mixture of the EOS.
 """
 number_of_components(e::AbstractEOS) = number_of_components(e.mixture)
 
+function get_phase(cond)
+    return get(cond, :phase, :unknown)::Symbol
+end
 
 function static_coefficients(::AbstractGeneralizedCubic)
     return (0.4274802327, 0.08664035, 0.0, 1.0)
@@ -95,10 +98,21 @@ function weight_ai(eos::GenericCubicEOS{SoaveRedlichKwong}, cond, i)
 end
 
 # Generic part
-binary_interaction(eos::AbstractEOS, i, j) = binary_interaction(eos.mixture, i, j)
-binary_interaction(mixture::MultiComponentMixture{R}, i, j) where {R} = binary_interaction(mixture.binary_interaction, i, j)::R
-binary_interaction(::Nothing, i, j) = 0.0
-Base.@propagate_inbounds binary_interaction(B::AbstractMatrix, i, j) = B[i, j]
+Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i, j, phase::Symbol)
+    return binary_interaction(eos.mixture, i, j, phase::Symbol)
+end
+
+Base.@propagate_inbounds function binary_interaction(mixture::MultiComponentMixture{R}, i, j, phase::Symbol) where {R}
+    return binary_interaction(mixture.binary_interaction, i, j, phase::Symbol)::R
+end
+
+function binary_interaction(::Nothing, i, j, phase::Symbol)
+    return 0.0
+end
+
+Base.@propagate_inbounds function binary_interaction(B::AbstractMatrix, i, j, phase::Symbol)
+    return B[i, j]
+end
 
 """
     mixture_compressibility_factor(eos, cond, [forces, scalars, phase])
@@ -215,9 +229,10 @@ Update quadratic part of attractive term
 function update_attractive_quadratic!(A_ij, A_i, eos::AbstractCubicEOS, cond)
     N = number_of_components(eos)
     T = eltype(A_i)
+    phase = get_phase(cond)
     for i = 1:N
         @inbounds for j = i:N
-            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j))
+            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j, phase))
             a::T
             A_ij[i, j] = a
             A_ij[j, i] = a
