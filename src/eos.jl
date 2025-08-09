@@ -63,7 +63,7 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
     if sw.component_types[i] == COMPONENT_H2O
         # Use the water-specific expression.
         w1, w2, w3 = sw.water_coefficients
-        α_half = 1.0 + w1*(1 - T_r*(w2))+ w3*(T^(-3)-1.0)
+        α_half = 1.0 + w1*(1.0 - w2*T_r) + w3*(T_r^(-3)-1.0)
     else
         α_half = 1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5)
     end
