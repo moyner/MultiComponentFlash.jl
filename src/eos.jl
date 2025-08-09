@@ -60,7 +60,7 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
     m = molecular_property(mix, i)
     a = acentric_factor(m)
     T_r = reduced_temperature(mix, cond, i)
-    if sw.component_types[i] == H2O
+    if sw.component_types[i] == COMPONENT_H2O
         # Use the water-specific expression.
         w1, w2, w3 = sw.water_coefficients
         α_half = 1.0 + w1*(1 - T_r*(w2))+ w3*(T^(-3)-1.0)

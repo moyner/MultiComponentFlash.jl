@@ -83,9 +83,6 @@ Specializes the GenericCubicEOS to the Redlich-Kwong cubic equation of state.
 """
 struct RedlichKwong <: AbstractGeneralizedCubic end
 
-
-@enum COMPONENT_ENUM N2 H2O CO2 H2S OTHER_COMPONENT
-
 """
     sw = SoreideWhitson(mixture_or_component_names)
 
@@ -135,17 +132,18 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
     for cname in component_names
         cname = get(abbr, cname, cname)
         lname = lowercase(cname)
+        @info lname
         if lname == "nitrogen"
-            push!(component_types, COMPONENT_ENUM.N2)
+            push!(component_types, COMPONENT_N2)
         elseif lname == "water" || lname == "brine"
-            push!(component_types, COMPONENT_ENUM.H2O)
+            push!(component_types, COMPONENT_H2O)
             water_found = true
         elseif lname == "carbondioxide"
-            push!(component_types, COMPONENT_ENUM.CO2)
+            push!(component_types, COMPONENT_CO2)
         elseif lname == "hydrogensulfide"
-            push!(component_types, COMPONENT_ENUM.H2S)
+            push!(component_types, COMPONENT_H2S)
         else
-            push!(component_types, COMPONENT_ENUM.OTHER_COMPONENT)
+            push!(component_types, COMPONENT_OTHER_COMPONENT)
         end
     end
     water_found || error("Water component not found in mixture. Søreide-Whitson EOS requires water to be present.")
