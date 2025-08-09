@@ -33,8 +33,8 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:AbstractPengRobins
     m = molecular_property(mix, i)
     a = acentric_factor(m)
     T_r = reduced_temperature(mix, cond, i)
-    tmp = (1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5))
-    return eos.ω_a*(tmp*tmp)
+    α_half = (1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5))
+    return eos.ω_a*(α_half*α_half)
 end
 
 function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
@@ -52,6 +52,22 @@ function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
     end
     tmp = 1.0 + D*(1.0-T_r^0.5)
     return eos.ω_a*(tmp*tmp);
+end
+
+function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
+    sw = eos.type
+    mix = eos.mixture
+    m = molecular_property(mix, i)
+    a = acentric_factor(m)
+    T_r = reduced_temperature(mix, cond, i)
+    if sw.component_types[i] == H2O
+        # Use the water-specific expression.
+        w1, w2, w3 = sw.water_coefficients
+        α_half = 1.0 + w1*(1 - T_r*(w2))+ w3*(T^(-3)-1.0)
+    else
+        α_half = 1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5)
+    end
+    return eos.ω_a*(α_half*α_half)
 end
 
 # ZudkevitchJoffe

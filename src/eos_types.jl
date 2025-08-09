@@ -99,7 +99,7 @@ struct SoreideWhitson{T} <: AbstractPengRobinson
     A::NTuple{3, T}
     A_mw::NTuple{3, T}
     alphas::NTuple{3, T}
-    bic_weights::NTuple{3, T}
+    water_coefficients::NTuple{3, T}
     molality::T
     T_co2::T
     component_types::Vector{COMPONENT_ENUM}
@@ -111,7 +111,7 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
         A = (1.1120, 1.1001, -0.15742),
         A_mw = (-1.7369, 0.8360, -1.0988),
         alphas = (0.017407, 0.033516, 0.011478),
-        bic_weights = (0.4530, 1.0 - 0.0103 * molality^1.1, 0.0034)
+        water_coefficients = (0.4530, 1.0 - 0.0103 * molality^1.1, 0.0034)
     )
     if mixture_or_cnames isa MultiComponentMixture
         component_names = mixture_or_cnames.component_names
@@ -119,16 +119,16 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
         component_names = mixture_or_cnames
     end
 
-    A1, A2, A3, A_mw1, A_mw2, A_mw3, α1, α2, α3, bic1, bic2, bic3, T_co2, molality = Base.promote(
+    A1, A2, A3, A_mw1, A_mw2, A_mw3, α1, α2, α3, water_coeff1, water_coeff2, water_coeff3, T_co2, molality = Base.promote(
         A[1], A[2], A[3], A_mw[1], A_mw[2], A_mw[3],
         alphas[1], alphas[2], alphas[3],
-        bic_weights[1], bic_weights[2], bic_weights[3],
+        water_coefficients[1], water_coefficients[2], water_coefficients[3],
         T_co2, molality
     )
     A = (A1, A2, A3)
     A_mw = (A_mw1, A_mw2, A_mw3)
     alphas = (α1, α2, α3)
-    bic_weights = (bic1, bic2, bic3)
+    water_coefficients = (water_coeff1, water_coeff2, water_coeff3)
     component_types = COMPONENT_ENUM[]
     abbr = property_abbreviations()
     water_found = false
@@ -149,7 +149,7 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
         end
     end
     water_found || error("Water component not found in mixture. Søreide-Whitson EOS requires water to be present.")
-    return SoreideWhitson{typeof(A1)}(A, A_mw, alphas, bic_weights, molality, T_co2, component_types)
+    return SoreideWhitson{typeof(A1)}(A, A_mw, alphas, water_coefficients, molality, T_co2, component_types)
 end
 
 
