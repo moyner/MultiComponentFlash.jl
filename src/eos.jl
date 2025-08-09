@@ -81,7 +81,9 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
     return eos.ω_a*(α_half*α_half)
 end
 
-function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, phase::Symbol) where T<:SoreideWhitson
+function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, cond) where T<:SoreideWhitson
+    phase = get_phase(cond)
+    sw = eos.type
     if phase == :liquid
         cat_i = eos.type.component_types[i]
         cat_j = eos.type.component_types[j]
@@ -89,26 +91,31 @@ function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, phase::Symb
         # Use eq 12 from paper
         i_is_h2o = cat_i == COMPONENT_H2O
         j_is_h2o = cat_j == COMPONENT_H2O
+        # in paper: i is hc, j is h2o
         if i_is_h2o || j_is_h2o
             # Special cases: H2O-H2S, H2O-N2 and H2O-CO2
             if i_is_h2o
                 cat_other = cat_j
+                ix = j
             else
                 cat_other = cat_i
+                ix = i
             end
+            hc_property = molecular_property(eos.mixture, ix)
+            acf = acentric_factor(hc_property)
+            T_r = cond.T/critical_temperature(hc_property)
             if cat_other == COMPONENT_CO2
-
+                bic = soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
             elseif cat_other == COMPONENT_H2S
-
+                bic = soreide_whitson_h2s_aqueous_bic(sw::SoreideWhitson, acf, T_r)
             elseif cat_other == COMPONENT_N2
-
+                bic = soreide_whitson_n2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
             else
-                # Use default.
-                bic = soreide_whitson_aqueous_bic(sw, w, T_r)
+                bic = soreide_whitson_hc_aqueous_bic(sw, acf, T_r)
             end
         else
             # Use default.
-            bic = soreide_whitson_aqueous_bic(sw, w, T_r)
+            bic = binary_interaction(eos.mixture, i, j)
         end
     elseif phase == :vapor
         bic = binary_interaction(eos.mixture, i, j)
@@ -118,15 +125,27 @@ function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, phase::Symb
     return bic
 end
 
-function soreide_whitson_aqueous_bic(sw::SoreideWhitson, wi, T_ri)
+function soreide_whitson_n2_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
+    error()
+end
+
+function soreide_whitson_h2s_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
+    error()
+end
+
+function soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
+    error()
+end
+
+function soreide_whitson_hc_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
     c_sw = sw.molality
     a_0, a_1, a_2 = sw.A
     a_mw_0, a_mw_1, a_mw_2 = sw.A_mw
-    α_0, α_0, α_0 = sw.alphas
+    α_0, α_1, α_2 = sw.alphas
 
-    A_0 = a_0 + a_mw_0*wi^(-0.1)
-    A_1 = a_1 + a_mw_1*wi
-    A_3 = a_2 + a_mw_2*wi
+    A_0 = a_0 + a_mw_0*acf_i^(-0.1)
+    A_1 = a_1 + a_mw_1*acf_i
+    A_2 = a_2 + a_mw_2*acf_i
     return A_0*(1 + α_0*c_sw) + A_1*T_ri*(1 + α_1*c_sw) + A_2*T_ri*(1 + α_2*c_sw)
 end
 
@@ -155,7 +174,7 @@ function weight_ai(eos::GenericCubicEOS{SoaveRedlichKwong}, cond, i)
 end
 
 # Generic part
-Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i::Int, j::Int, phase::Symbol)
+Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i::Int, j::Int, cond)
     return binary_interaction(eos.mixture, i, j)
 end
 
@@ -292,10 +311,9 @@ Update quadratic part of attractive term
 function update_attractive_quadratic!(A_ij, A_i, eos::AbstractCubicEOS, cond)
     N = number_of_components(eos)
     T = eltype(A_i)
-    phase = get_phase(cond)
     for i = 1:N
         @inbounds for j = i:N
-            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j, phase))
+            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j, cond))
             a::T
             A_ij[i, j] = a
             A_ij[j, i] = a
