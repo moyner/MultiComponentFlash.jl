@@ -24,8 +24,8 @@ function stability_2ph!(storage, K, eos, c;
     f_xy = storage.buffer2
     x, y = storage.x, storage.y
     z, p, T = c.z, c.p, c.T
-    liquid = (p = p, T = T, z = x)
-    vapor = (p = p, T = T, z = y)
+    liquid = (p = p, T = T, z = x, phase = :liquid)
+    vapor = (p = p, T = T, z = y, phase = :vapor)
     # Update fugacities for current conditions used in both tests
     mixture_fugacities!(f_z, eos, c, forces)
     if check_vapor
