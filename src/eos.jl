@@ -143,7 +143,8 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
         B_i = zeros(eT, n)
     end
     coeff = (A_ij = A_ij, A_i = A_i, B_i = B_i)
-    force_coefficients!(coeff, eos, cond)
+    update_force_coefficients!(coeff, eos, cond)
+    return coeff
 end
 
 function get_force_coefficients(forces, eos, cond)
@@ -180,11 +181,11 @@ function force_coefficients!(coeff, eos::AbstractCubicEOS, cond)
     return coeff
 end
 
-function update_force_coefficients!(forces, eos::AbstractCubicEOS, cond)
+function update_force_coefficients!(coeff, eos::AbstractCubicEOS, cond)
     update_attractive_linear!(coeff.A_i, eos, cond)
     update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, cond)
     update_repulsive!(coeff.B_i, eos, cond)
-    return forces
+    return coeff
 end
 
 """
