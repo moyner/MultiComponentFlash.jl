@@ -98,19 +98,19 @@ function weight_ai(eos::GenericCubicEOS{SoaveRedlichKwong}, cond, i)
 end
 
 # Generic part
-Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i, j, phase::Symbol)
-    return binary_interaction(eos.mixture, i, j, phase::Symbol)
+Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i::Int, j::Int, phase::Symbol)
+    return binary_interaction(eos.mixture, i, j)
 end
 
-Base.@propagate_inbounds function binary_interaction(mixture::MultiComponentMixture{R}, i, j, phase::Symbol) where {R}
-    return binary_interaction(mixture.binary_interaction, i, j, phase::Symbol)::R
+Base.@propagate_inbounds function binary_interaction(mixture::MultiComponentMixture{R}, i, j) where {R}
+    return binary_interaction(mixture.binary_interaction, i, j)::R
 end
 
-function binary_interaction(::Nothing, i, j, phase::Symbol)
+function binary_interaction(::Nothing, i, j)
     return 0.0
 end
 
-Base.@propagate_inbounds function binary_interaction(B::AbstractMatrix, i, j, phase::Symbol)
+Base.@propagate_inbounds function binary_interaction(B::AbstractMatrix, i, j)
     return B[i, j]
 end
 
