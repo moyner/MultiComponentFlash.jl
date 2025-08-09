@@ -44,7 +44,7 @@ function stability_2ph!(storage, K, eos, c;
     stable_liquid, trivial_liquid, i_l = l
     report = StabilityReport(
         stable_liquid = stable_liquid,
-        trivial_liquid = trivial_vapor,
+        trivial_liquid = trivial_liquid,
         stable_vapor = stable_vapor,
         trivial_vapor = trivial_vapor
     )
