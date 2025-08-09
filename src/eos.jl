@@ -186,10 +186,10 @@ In-place update of force coefficients.
 
 See also [`force_coefficients`](@ref)
 """
-function force_coefficients!(coeff, eos::AbstractCubicEOS, arg...)
-    update_attractive_linear!(coeff.A_i, eos, arg...)
-    update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, arg...)
-    update_repulsive!(coeff.B_i, eos, arg...)
+function force_coefficients!(coeff, eos::AbstractCubicEOS, cond)
+    update_attractive_linear!(coeff.A_i, eos, cond)
+    update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, cond)
+    update_repulsive!(coeff.B_i, eos, cond)
     return coeff
 end
 
