@@ -165,8 +165,16 @@ function flash_storage_internal!(out, eos, cond, method;
         kwarg...
     )
     n = number_of_components(eos)
-    cond = set_phase(cond, :liquid)
-    out[:forces] = force_coefficients(eos, cond, static_size = static_size)
+    alloc_forces(c) = force_coefficients(eos, c, static_size = static_size)
+    if forces_per_phase(eos)
+        cond = set_phase(cond, :liquid)
+        lforces = alloc_forces(cond)
+        cond = set_phase(cond, :vapor)
+        vforces = alloc_forces(cond)
+        out[:forces] = (liquid = lforces, vapor = vforces)
+    else
+        out[:forces] = alloc_forces(cond)
+    end
     if static_size
         alloc_vec = () -> @MVector zeros(n)
     else

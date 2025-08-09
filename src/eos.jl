@@ -8,6 +8,8 @@ Return number of components for the underlying mixture of the EOS.
 """
 number_of_components(e::AbstractEOS) = number_of_components(e.mixture)
 
+forces_per_phase(eos::GenericCubicEOS) = false
+
 function get_phase(cond)
     return get(cond, :phase, :unknown)::Symbol
 end

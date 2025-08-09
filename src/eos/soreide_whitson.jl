@@ -1,3 +1,5 @@
+forces_per_phase(eos::GenericCubicEOS{T}) where T<:SoreideWhitson = true
+
 # Søreide-Whitson Peng-Robinson variant
 function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
     sw = eos.type
