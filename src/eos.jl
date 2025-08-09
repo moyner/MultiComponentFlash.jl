@@ -12,6 +12,13 @@ function get_phase(cond)
     return get(cond, :phase, :unknown)::Symbol
 end
 
+function set_phase(cond, phase::Symbol, throw::Bool = false)
+    if throw && haskey(cond, :phase) && cond.phase != :unknown
+        throw(ArgumentError("Phase state already set to $(cond.phase), cannot change to $phase."))
+    end
+    return (p = cond.p, T = cond.T, z = cond.z, phase = phase)
+end
+
 function static_coefficients(::AbstractGeneralizedCubic)
     return (0.4274802327, 0.08664035, 0.0, 1.0)
 end
@@ -57,6 +64,7 @@ function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
     return eos.ω_a*(tmp*tmp);
 end
 
+# Søreide-Whitson Peng-Robinson variant
 function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
     sw = eos.type
     mix = eos.mixture
@@ -71,6 +79,55 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
         α_half = 1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5)
     end
     return eos.ω_a*(α_half*α_half)
+end
+
+function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, phase::Symbol) where T<:SoreideWhitson
+    if phase == :liquid
+        cat_i = eos.type.component_types[i]
+        cat_j = eos.type.component_types[j]
+
+        # Use eq 12 from paper
+        i_is_h2o = cat_i == COMPONENT_H2O
+        j_is_h2o = cat_j == COMPONENT_H2O
+        if i_is_h2o || j_is_h2o
+            # Special cases: H2O-H2S, H2O-N2 and H2O-CO2
+            if i_is_h2o
+                cat_other = cat_j
+            else
+                cat_other = cat_i
+            end
+            if cat_other == COMPONENT_CO2
+
+            elseif cat_other == COMPONENT_H2S
+
+            elseif cat_other == COMPONENT_N2
+
+            else
+                # Use default.
+                bic = soreide_whitson_aqueous_bic(sw, w, T_r)
+            end
+        else
+            # Use default.
+            bic = soreide_whitson_aqueous_bic(sw, w, T_r)
+        end
+    elseif phase == :vapor
+        bic = binary_interaction(eos.mixture, i, j)
+    else
+        error("Søreide-Whitson requires the phase state to be specified for binary interactions (was: $phase).")
+    end
+    return bic
+end
+
+function soreide_whitson_aqueous_bic(sw::SoreideWhitson, wi, T_ri)
+    c_sw = sw.molality
+    a_0, a_1, a_2 = sw.A
+    a_mw_0, a_mw_1, a_mw_2 = sw.A_mw
+    α_0, α_0, α_0 = sw.alphas
+
+    A_0 = a_0 + a_mw_0*wi^(-0.1)
+    A_1 = a_1 + a_mw_1*wi
+    A_3 = a_2 + a_mw_2*wi
+    return A_0*(1 + α_0*c_sw) + A_1*T_ri*(1 + α_1*c_sw) + A_2*T_ri*(1 + α_2*c_sw)
 end
 
 # ZudkevitchJoffe
