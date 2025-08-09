@@ -273,11 +273,11 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
     x = liquid_mole_fraction!(x, z, K, V)
     y = vapor_mole_fraction!(y, x, K)
 
-    liquid = (p = p, T = T, z = x)
-    vapor = (p = p, T = T, z = y)
+    liquid = (p = p, T = T, z = x, phase = :liquid)
+    vapor = (p = p, T = T, z = y, phase = :vapor)
 
-    Z_l, s_l = prep(eos, liquid, forces,:liquid)
-    Z_v, s_v = prep(eos, vapor, forces,:vapor)
+    Z_l, s_l = prep(eos, liquid, forces)
+    Z_v, s_v = prep(eos, vapor, forces)
 
     ϵ = zero(F)
     @inbounds for c in eachindex(K)
@@ -395,22 +395,20 @@ function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V, i
     end
 end
 
-#the phase::Symbol argument is not used here, as cubics normally don't require this.
-#however, EOS that require iterative volume calculations require specifying a phase.
-function prep(eos, cond, forces,phase = :unknown)
+function prep(eos, cond, forces)
     s = force_scalars(eos, cond, forces)
-    Z = mixture_compressibility_factor(eos, cond, forces, s, phase)
+    Z = mixture_compressibility_factor(eos, cond, forces, s)
     return (Z, s)
 end
 
 function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     has_r = !isnothing(r)
     n = number_of_components(eos)
-    liquid = (p = p, T = T, z = x)
-    vapor = (p = p, T = T, z = y)
+    liquid = (p = p, T = T, z = x, phase = :liquid)
+    vapor = (p = p, T = T, z = y, phase = :vapor)
 
-    Z_l, s_l = prep(eos, liquid, forces,:liquid)
-    Z_v, s_v = prep(eos, vapor, forces,:vapor)
+    Z_l, s_l = prep(eos, liquid, forces)
+    Z_v, s_v = prep(eos, vapor, forces)
 
     p, V = Base.promote(p, V)
     np = length(V.partials)

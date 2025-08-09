@@ -123,21 +123,27 @@ provided if they are already known.
 The compressibility factor adjusts the ideal gas law to account for non-linear behavior: ``pV = nRTZ``
 """
 
-function mixture_compressibility_factor(eos::AbstractCubicEOS, cond,
-                                            forces = force_coefficients(eos, cond),
-                                            scalars = force_scalars(eos, cond, forces),
-                                            phase = :unknown)
+function mixture_compressibility_factor(
+        eos::AbstractCubicEOS,
+        cond,
+        forces = force_coefficients(eos, cond),
+        scalars = force_scalars(eos, cond, forces)
+    )
     poly = eos_polynomial(eos, forces, scalars)
     roots = solve_roots(eos, poly)
-    r = pick_root(eos, roots, cond, forces, scalars, phase)
+    r = pick_root(eos, roots, cond, forces, scalars)
     return r
 end
 
 minimum_allowable_root(eos::AbstractCubicEOS, forces, scalars) = scalars.B
 minimum_allowable_root(eos, forces, scalars) = 1e-16
 
-@inline pick_root(eos, roots::Real, cond, forces, scalars, phase = :unknown) = roots
-function pick_root(eos, roots, cond, forces, scalars, phase = :unknown)
+@inline function pick_root(eos, roots::Real, cond, forces, scalars)
+    return roots
+end
+
+function pick_root(eos, roots, cond, forces, scalars)
+    phase = get_phase(cond)
     r_ϵ = minimum_allowable_root(eos, forces, scalars)
     max_r = maximum(roots)
     min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
