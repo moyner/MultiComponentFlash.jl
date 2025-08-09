@@ -146,6 +146,21 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     force_coefficients!(coeff, eos, cond)
 end
 
+function get_force_coefficients(forces, eos, cond)
+    if forces_per_phase(eos)
+        phase = get_phase(cond)
+        if phase == :liquid
+            return forces.liquid
+        elseif phase == :vapor
+            return forces.vapor
+        else
+            error("Forces per phase are only supported for liquid and vapor phases, not $phase.")
+        end
+    else
+        return forces
+    end
+end
+
 """
     force_coefficients!(coeff, eos, cond)
 
@@ -210,7 +225,8 @@ end
 Compute EOS specific scalars for the current conditions based on the forces.
 """
 function force_scalars(eos::AbstractCubicEOS, cond, forces)
-    return cubic_scalars(forces.A_ij, forces.B_i, cond.z)
+    f = get_force_coefficients(forces, eos, cond)
+    return cubic_scalars(f.A_ij, f.B_i, cond.z)
 end
 
 function cubic_scalars(A_ij, Bv, z)
@@ -262,7 +278,8 @@ Base.@propagate_inbounds function component_fugacity_coefficient(eos::AbstractCu
     # NOTE: This returns ln(ψ), not ψ!
     m1 = eos.m_1
     m2 = eos.m_2
-    return component_fugacity_coefficient_cubic(m1, m2, cond.z, Z, scalars.A, scalars.B, forces.A_ij, forces.B_i, i)
+    f = get_force_coefficients(forces, eos, cond)
+    return component_fugacity_coefficient_cubic(m1, m2, cond.z, Z, scalars.A, scalars.B, f.A_ij, f.B_i, i)
 end
 
 Base.@propagate_inbounds function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)
