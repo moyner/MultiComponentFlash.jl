@@ -126,15 +126,17 @@ function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, cond) where
 end
 
 function soreide_whitson_n2_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
-    error()
+    c_sw = sw.molality
+    return -1.70235*(1 + 0.025587*c_sw^0.75) + 0.44338*(1 + 0.08126*c_sw^0.75)*T_ri
 end
 
 function soreide_whitson_h2s_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
-    error()
+    return -0.20441 + 0.234267*T_ri
 end
 
 function soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
-    error()
+    c_sw = sw.molality
+    return -0.31092*(1 + 0.15587*c_sw^0.7505) +0.23580 * (1 + 0.17837*c_sw^0.979)*T_ri - 21.2566*exp(-6.7222*T_ri- c_sw)
 end
 
 function soreide_whitson_hc_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)

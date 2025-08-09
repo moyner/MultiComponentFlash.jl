@@ -132,7 +132,6 @@ function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{S
     for cname in component_names
         cname = get(abbr, cname, cname)
         lname = lowercase(cname)
-        @info lname
         if lname == "nitrogen"
             push!(component_types, COMPONENT_N2)
         elseif lname == "water" || lname == "brine"
