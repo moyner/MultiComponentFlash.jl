@@ -169,10 +169,22 @@ In-place update of force coefficients.
 See also [`force_coefficients`](@ref)
 """
 function force_coefficients!(coeff, eos::AbstractCubicEOS, cond)
+    if forces_per_phase(eos)
+        cond = set_phase(cond, :liquid)
+        update_force_coefficients!(coeff.liquid, eos, cond)
+        cond = set_phase(cond, :vapor)
+        update_force_coefficients!(coeff.vapor, eos, cond)
+    else
+        update_force_coefficients!(coeff, eos, cond)
+    end
+    return coeff
+end
+
+function update_force_coefficients!(forces, eos::AbstractCubicEOS, cond)
     update_attractive_linear!(coeff.A_i, eos, cond)
     update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, cond)
     update_repulsive!(coeff.B_i, eos, cond)
-    return coeff
+    return forces
 end
 
 """
