@@ -18,45 +18,48 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
 end
 
 function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, cond) where T<:SoreideWhitson
-    phase = get_phase(cond)
-    sw = eos.type
-    if phase == :liquid
-        cat_i = eos.type.component_types[i]
-        cat_j = eos.type.component_types[j]
-
-        # Use eq 12 from paper
-        i_is_h2o = cat_i == COMPONENT_H2O
-        j_is_h2o = cat_j == COMPONENT_H2O
-        # in paper: i is hc, j is h2o
-        if i_is_h2o || j_is_h2o
-            # Special cases: H2O-H2S, H2O-N2 and H2O-CO2
-            if i_is_h2o
-                cat_other = cat_j
-                ix = j
-            else
-                cat_other = cat_i
-                ix = i
-            end
-            hc_property = molecular_property(eos.mixture, ix)
-            acf = acentric_factor(hc_property)
-            T_r = cond.T/critical_temperature(hc_property)
-            if cat_other == COMPONENT_CO2
-                bic = soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
-            elseif cat_other == COMPONENT_H2S
-                bic = soreide_whitson_h2s_aqueous_bic(sw::SoreideWhitson, acf, T_r)
-            elseif cat_other == COMPONENT_N2
-                bic = soreide_whitson_n2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
-            else
-                bic = soreide_whitson_hc_aqueous_bic(sw, acf, T_r)
-            end
-        else
-            # Use default.
-            bic = binary_interaction(eos.mixture, i, j)
-        end
-    elseif phase == :vapor
-        bic = binary_interaction(eos.mixture, i, j)
+    if i == j
+        bic = 0.0
     else
-        error("Søreide-Whitson requires the phase state to be specified for binary interactions (was: $phase).")
+        phase = get_phase(cond)
+        sw = eos.type
+        if phase == :liquid
+            cat_i = eos.type.component_types[i]
+            cat_j = eos.type.component_types[j]
+            # Use eq 12 from paper
+            i_is_h2o = cat_i == COMPONENT_H2O
+            j_is_h2o = cat_j == COMPONENT_H2O
+            # in paper: i is hc, j is h2o
+            if i_is_h2o || j_is_h2o
+                # Special cases: H2O-H2S, H2O-N2 and H2O-CO2
+                if i_is_h2o
+                    cat_other = cat_j
+                    ix = j
+                else
+                    cat_other = cat_i
+                    ix = i
+                end
+                hc_property = molecular_property(eos.mixture, ix)
+                acf = acentric_factor(hc_property)
+                T_r = cond.T/critical_temperature(hc_property)
+                if cat_other == COMPONENT_CO2
+                    bic = soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
+                elseif cat_other == COMPONENT_H2S
+                    bic = soreide_whitson_h2s_aqueous_bic(sw::SoreideWhitson, acf, T_r)
+                elseif cat_other == COMPONENT_N2
+                    bic = soreide_whitson_n2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
+                else
+                    bic = soreide_whitson_hc_aqueous_bic(sw, acf, T_r)
+                end
+            else
+                # Use default.
+                bic = binary_interaction(eos.mixture, i, j)
+            end
+        elseif phase == :vapor
+            bic = binary_interaction(eos.mixture, i, j)
+        else
+            error("Søreide-Whitson requires the phase state to be specified for binary interactions (was: $phase).")
+        end
     end
     return bic
 end
@@ -72,7 +75,7 @@ end
 
 function soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
     c_sw = sw.molality
-    return -0.31092*(1 + 0.15587*c_sw^0.7505) +0.23580 * (1 + 0.17837*c_sw^0.979)*T_ri - 21.2566*exp(-6.7222*T_ri- c_sw)
+    return -0.31092*(1 + 0.15587*c_sw^0.7505) + 0.23580 * (1 + 0.17837*c_sw^0.979)*T_ri - 21.2566*exp(-6.7222*T_ri- c_sw)
 end
 
 function soreide_whitson_hc_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
