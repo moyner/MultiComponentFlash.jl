@@ -84,7 +84,7 @@ function soreide_whitson_hc_aqueous_bic(sw::SoreideWhitson, acf_i, T_ri)
     a_mw_0, a_mw_1, a_mw_2 = sw.A_mw
     α_0, α_1, α_2 = sw.alphas
 
-    A_0 = a_0 + a_mw_0*acf_i^(-0.1)
+    A_0 = a_0 + a_mw_0*sign(acf_i)*abs(acf_i)^(-0.1)
     A_1 = a_1 + a_mw_1*acf_i
     A_2 = a_2 + a_mw_2*acf_i
     return A_0*(1 + α_0*c_sw) + A_1*T_ri*(1 + α_1*c_sw) + A_2*T_ri*(1 + α_2*c_sw)

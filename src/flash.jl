@@ -245,7 +245,7 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     for i = 1:n
         z_ad[i] = secondary_ad(i+2)
     end
-    cond_ad = (p = p_ad, T = T_ad, z = z_ad)
+    cond_ad = (p = p_ad, T = T_ad, z = z_ad, phase = :liquid)
     if !isnothing(npartials)
         if static_size
             buf = @MVector zeros(npartials)
