@@ -43,11 +43,11 @@ function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, cond) where
                 acf = acentric_factor(hc_property)
                 T_r = cond.T/critical_temperature(hc_property)
                 if cat_other == COMPONENT_CO2
-                    bic = soreide_whitson_co2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
+                    bic = soreide_whitson_co2_aqueous_bic(sw, acf, T_r)
                 elseif cat_other == COMPONENT_H2S
-                    bic = soreide_whitson_h2s_aqueous_bic(sw::SoreideWhitson, acf, T_r)
+                    bic = soreide_whitson_h2s_aqueous_bic(sw, acf, T_r)
                 elseif cat_other == COMPONENT_N2
-                    bic = soreide_whitson_n2_aqueous_bic(sw::SoreideWhitson, acf, T_r)
+                    bic = soreide_whitson_n2_aqueous_bic(sw, acf, T_r)
                 else
                     bic = soreide_whitson_hc_aqueous_bic(sw, acf, T_r)
                 end
