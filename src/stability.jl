@@ -27,7 +27,8 @@ function stability_2ph!(storage, K, eos, c;
     liquid = (p = p, T = T, z = x, phase = :liquid)
     vapor = (p = p, T = T, z = y, phase = :vapor)
     current_as_liquid = (p = p, T = T, z = z, phase = :liquid)
-    mixture_fugacities!(f_z, eos, current_as_liquid, forces)
+    current_as_vapor = (p = p, T = T, z = z, phase = :vapor)
+    mixture_fugacities!(f_z, eos, current_as_vapor, forces)
     if check_vapor
         wilson_estimate!(K, eos, p, T)
         v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true); kwarg...)
@@ -40,8 +41,7 @@ function stability_2ph!(storage, K, eos, c;
             # Need to recalculate fugacities for the liquid phase if the flash
             # uses e.g. different bic coefficients for each phase. Otherwise,
             # these are already ok.
-            current_as_vapor = (p = p, T = T, z = z, phase = :vapor)
-            mixture_fugacities!(f_z, eos, current_as_vapor, forces)
+            mixture_fugacities!(f_z, eos, current_as_liquid, forces)
         end
         wilson_estimate!(K, eos, p, T)
         l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false); kwarg...)
