@@ -1,8 +1,9 @@
 
 """
-    flash_2ph(eos, c, [K], [V]; <keyword arguments>)
+    V = flash_2ph(eos, c, [K], [V]; <keyword arguments>)
 
-Perform two-phase flash with a given EOS under a set of specific conditions. Returns vapor fraction. Modifies K in-place.
+Perform two-phase flash with a given EOS under a set of specific conditions.
+Returns vapor fraction `V`. Modifies K in-place.
 
 Given a mixture with pressure, temperature and mole fractions, this routine performs a vapor-liquid
 equilibrium calculation after a stability test.
@@ -464,11 +465,24 @@ end
 
 Base.@propagate_inbounds ∂(D, i) = D.partials[i]
 
-"Compute liquid mole fraction from overall mole fraction, K-value and V vapor fraction"
+"""
+    x = liquid_mole_fraction(z, K, V)
+
+Compute liquid mole fractions from overall mole fraction `z`, vector with one
+K-value per component as`K` and vapor fraction `V`."""
 @inline liquid_mole_fraction(z, K, V) = z/(1 - V + V*K)
-"Compute vapor mole fraction from overall mole fraction, K-value and V vapor fraction"
+
+"""
+    y = vapor_mole_fraction(z, K, V)
+Compute vapor mole fractions from overall mole fraction `z`, vector with one
+K-value per component as`K` and vapor fraction `V`.
+"""
 @inline vapor_mole_fraction(z, K, V) = K*liquid_mole_fraction(z, K, V)
-"Compute vapor mole fraction from liquid mole fraction and K-value"
+
+"""
+    y = vapor_mole_fraction(x, K)
+Compute vapor mole fractions from liquid mole fraction `x` and K-values `K`.
+"""
 @inline vapor_mole_fraction(x, K) = x*K
 
 liquid_mole_fraction!(x, z, K, V) = begin x .= z ./ (1 .- V .+ V .* K);x end
