@@ -74,8 +74,12 @@ function mixture_compressibility_factor(
         eos::AbstractCubicEOS,
         cond,
         forces = force_coefficients(eos, cond),
-        scalars = force_scalars(eos, cond, forces)
+        scalars = force_scalars(eos, cond, forces),
+        phase = missing
     )
+    if !ismissing(phase)
+        cond = set_phase(cond, phase)
+    end
     poly = eos_polynomial(eos, forces, scalars)
     roots = solve_roots(eos, poly)
     r = pick_root(eos, roots, cond, forces, scalars)
