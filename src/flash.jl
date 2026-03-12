@@ -1,8 +1,9 @@
 
 """
-    flash_2ph(eos, c, [K], [V]; <keyword arguments>)
+    V = flash_2ph(eos, c, [K], [V]; <keyword arguments>)
 
-Perform two-phase flash with a given EOS under a set of specific conditions. Returns vapor fraction. Modifies K in-place.
+Perform two-phase flash with a given EOS under a set of specific conditions.
+Returns vapor fraction `V`. Modifies K in-place.
 
 Given a mixture with pressure, temperature and mole fractions, this routine performs a vapor-liquid
 equilibrium calculation after a stability test.
@@ -165,7 +166,16 @@ function flash_storage_internal!(out, eos, cond, method;
         kwarg...
     )
     n = number_of_components(eos)
-    out[:forces] = force_coefficients(eos, cond, static_size = static_size)
+    alloc_forces(c) = force_coefficients(eos, c, static_size = static_size)
+    if forces_per_phase(eos)
+        cond = set_phase(cond, :liquid)
+        lforces = alloc_forces(cond)
+        cond = set_phase(cond, :vapor)
+        vforces = alloc_forces(cond)
+        out[:forces] = (liquid = lforces, vapor = vforces)
+    else
+        out[:forces] = alloc_forces(cond)
+    end
     if static_size
         alloc_vec = () -> @MVector zeros(n)
     else
@@ -235,7 +245,7 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     for i = 1:n
         z_ad[i] = secondary_ad(i+2)
     end
-    cond_ad = (p = p_ad, T = T_ad, z = z_ad)
+    cond_ad = (p = p_ad, T = T_ad, z = z_ad, phase = :liquid)
     if !isnothing(npartials)
         if static_size
             buf = @MVector zeros(npartials)
@@ -273,11 +283,11 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
     x = liquid_mole_fraction!(x, z, K, V)
     y = vapor_mole_fraction!(y, x, K)
 
-    liquid = (p = p, T = T, z = x)
-    vapor = (p = p, T = T, z = y)
+    liquid = (p = p, T = T, z = x, phase = :liquid)
+    vapor = (p = p, T = T, z = y, phase = :vapor)
 
-    Z_l, s_l = prep(eos, liquid, forces,:liquid)
-    Z_v, s_v = prep(eos, vapor, forces,:vapor)
+    Z_l, s_l = prep(eos, liquid, forces)
+    Z_v, s_v = prep(eos, vapor, forces)
 
     ϵ = zero(F)
     @inbounds for c in eachindex(K)
@@ -395,22 +405,20 @@ function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V, i
     end
 end
 
-#the phase::Symbol argument is not used here, as cubics normally don't require this.
-#however, EOS that require iterative volume calculations require specifying a phase.
-function prep(eos, cond, forces,phase = :unknown)
+function prep(eos, cond, forces)
     s = force_scalars(eos, cond, forces)
-    Z = mixture_compressibility_factor(eos, cond, forces, s, phase)
+    Z = mixture_compressibility_factor(eos, cond, forces, s)
     return (Z, s)
 end
 
 function update_flash_jacobian!(J, r, eos, p, T, z, x, y, V, forces)
     has_r = !isnothing(r)
     n = number_of_components(eos)
-    liquid = (p = p, T = T, z = x)
-    vapor = (p = p, T = T, z = y)
+    liquid = (p = p, T = T, z = x, phase = :liquid)
+    vapor = (p = p, T = T, z = y, phase = :vapor)
 
-    Z_l, s_l = prep(eos, liquid, forces,:liquid)
-    Z_v, s_v = prep(eos, vapor, forces,:vapor)
+    Z_l, s_l = prep(eos, liquid, forces)
+    Z_v, s_v = prep(eos, vapor, forces)
 
     p, V = Base.promote(p, V)
     np = length(V.partials)
@@ -457,11 +465,24 @@ end
 
 Base.@propagate_inbounds ∂(D, i) = D.partials[i]
 
-"Compute liquid mole fraction from overall mole fraction, K-value and V vapor fraction"
+"""
+    x = liquid_mole_fraction(z, K, V)
+
+Compute liquid mole fractions from overall mole fraction `z`, vector with one
+K-value per component as`K` and vapor fraction `V`."""
 @inline liquid_mole_fraction(z, K, V) = z/(1 - V + V*K)
-"Compute vapor mole fraction from overall mole fraction, K-value and V vapor fraction"
+
+"""
+    y = vapor_mole_fraction(z, K, V)
+Compute vapor mole fractions from overall mole fraction `z`, vector with one
+K-value per component as`K` and vapor fraction `V`.
+"""
 @inline vapor_mole_fraction(z, K, V) = K*liquid_mole_fraction(z, K, V)
-"Compute vapor mole fraction from liquid mole fraction and K-value"
+
+"""
+    y = vapor_mole_fraction(x, K)
+Compute vapor mole fractions from liquid mole fraction `x` and K-values `K`.
+"""
 @inline vapor_mole_fraction(x, K) = x*K
 
 liquid_mole_fraction!(x, z, K, V) = begin x .= z ./ (1 .- V .+ V .* K);x end

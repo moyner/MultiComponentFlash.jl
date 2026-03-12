@@ -4,6 +4,8 @@ module MultiComponentFlash
     # Constants.
     const MINIMUM_COMPOSITION = 1e-10
     const IDEAL_GAS_CONSTANT = 8.3144598
+    @enum COMPONENT_ENUM COMPONENT_N2 COMPONENT_H2O COMPONENT_CO2 COMPONENT_H2S COMPONENT_OTHER_COMPONENT
+
     # Load types first
     include("mixture_types.jl")
     include("eos_types.jl")

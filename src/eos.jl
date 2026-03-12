@@ -8,6 +8,18 @@ Return number of components for the underlying mixture of the EOS.
 """
 number_of_components(e::AbstractEOS) = number_of_components(e.mixture)
 
+forces_per_phase(eos::GenericCubicEOS) = false
+
+function get_phase(cond)
+    return get(cond, :phase, :unknown)::Symbol
+end
+
+function set_phase(cond, phase::Symbol, throw::Bool = false)
+    if throw && haskey(cond, :phase) && cond.phase != :unknown
+        throw(ArgumentError("Phase state already set to $(cond.phase), cannot change to $phase."))
+    end
+    return (p = cond.p, T = cond.T, z = cond.z, phase = phase)
+end
 
 function static_coefficients(::AbstractGeneralizedCubic)
     return (0.4274802327, 0.08664035, 0.0, 1.0)
@@ -23,66 +35,31 @@ function weight_ai(eos::GenericCubicEOS{T, R}, cond, i) where {T<:AbstractGenera
     return eos.ω_a*T_r^(-1/2)
 end
 
-# PengRobinson specialization
-function static_coefficients(::AbstractPengRobinson)
-    return (0.457235529, 0.077796074, 1.0 + sqrt(2), 1.0 - sqrt(2))
-end
-
-function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:AbstractPengRobinson
-    mix = eos.mixture
-    m = molecular_property(mix, i)
-    a = acentric_factor(m)
-    T_r = reduced_temperature(mix, cond, i)
-    tmp = (1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5))
-    return eos.ω_a*(tmp*tmp)
-end
-
-function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
-    mix = eos.mixture
-    m = molecular_property(mix, i)
-    a = acentric_factor(m)
-    T_r = reduced_temperature(mix, cond, i)
-    aa = a*a
-    if a > 0.49
-        # Use alternate expression.
-        D = (0.379642 + 1.48503*a - 0.164423*aa + 0.016666*a*aa)
-    else
-        # Use standard expression.
-        D = (0.37464 + 1.54226*a - 0.26992*aa)
-    end
-    tmp = 1.0 + D*(1.0-T_r^0.5)
-    return eos.ω_a*(tmp*tmp);
-end
-
-# ZudkevitchJoffe
-function weight_ai(eos::GenericCubicEOS{ZudkevitchJoffe}, cond, i)
-    zj = eos.type
-    mix = eos.mixture
-    T = cond.T
-    T_r = reduced_temperature(mix, cond, i)
-    return eos.ω_a*zj.F_a(T, i)*T_r^(-0.5)
-end
-
-function weight_bi(eos::GenericCubicEOS{ZudkevitchJoffe}, cond, i)
-    zj = eos.type
-    T = cond.T
-    return eos.ω_b*zj.F_b(T, i)
-end
-
-# SoaveRedlichKwong
-function weight_ai(eos::GenericCubicEOS{SoaveRedlichKwong}, cond, i)
-    mix = eos.mixture
-    m = molecular_property(mix, i)
-    a = acentric_factor(m)
-    T_r = reduced_temperature(mix, cond, i)
-    return eos.ω_a*(1 + (0.48 + 1.574*a - 0.176*a^2)*(1-T_r^(1/2)))^2;
-end
+# Peng Robinson and variants
+include("eos/peng_robinson.jl")
+include("eos/peng_robinson_corrected.jl")
+include("eos/soreide_whitson.jl")
+# Soave Redlich-Kwong
+include("eos/soave_redlich_kwong.jl")
+# Zudkevitch-Joffe
+include("eos/zudkevitch_joffe.jl")
 
 # Generic part
-binary_interaction(eos::AbstractEOS, i, j) = binary_interaction(eos.mixture, i, j)
-binary_interaction(mixture::MultiComponentMixture{R}, i, j) where {R} = binary_interaction(mixture.binary_interaction, i, j)::R
-binary_interaction(::Nothing, i, j) = 0.0
-Base.@propagate_inbounds binary_interaction(B::AbstractMatrix, i, j) = B[i, j]
+Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i::Int, j::Int, cond)
+    return binary_interaction(eos.mixture, i, j)
+end
+
+Base.@propagate_inbounds function binary_interaction(mixture::MultiComponentMixture{R}, i, j) where {R}
+    return binary_interaction(mixture.binary_interaction, i, j)::R
+end
+
+function binary_interaction(::Nothing, i, j)
+    return 0.0
+end
+
+Base.@propagate_inbounds function binary_interaction(B::AbstractMatrix, i, j)
+    return B[i, j]
+end
 
 """
     mixture_compressibility_factor(eos, cond, [forces, scalars, phase])
@@ -93,21 +70,31 @@ provided if they are already known.
 The compressibility factor adjusts the ideal gas law to account for non-linear behavior: ``pV = nRTZ``
 """
 
-function mixture_compressibility_factor(eos::AbstractCubicEOS, cond,
-                                            forces = force_coefficients(eos, cond),
-                                            scalars = force_scalars(eos, cond, forces),
-                                            phase = :unknown)
+function mixture_compressibility_factor(
+        eos::AbstractCubicEOS,
+        cond,
+        forces = force_coefficients(eos, cond),
+        scalars = force_scalars(eos, cond, forces),
+        phase = missing
+    )
+    if !ismissing(phase)
+        cond = set_phase(cond, phase)
+    end
     poly = eos_polynomial(eos, forces, scalars)
     roots = solve_roots(eos, poly)
-    r = pick_root(eos, roots, cond, forces, scalars, phase)
+    r = pick_root(eos, roots, cond, forces, scalars)
     return r
 end
 
 minimum_allowable_root(eos::AbstractCubicEOS, forces, scalars) = scalars.B
 minimum_allowable_root(eos, forces, scalars) = 1e-16
 
-@inline pick_root(eos, roots::Real, cond, forces, scalars, phase = :unknown) = roots
-function pick_root(eos, roots, cond, forces, scalars, phase = :unknown)
+@inline function pick_root(eos, roots::Real, cond, forces, scalars)
+    return roots
+end
+
+function pick_root(eos, roots, cond, forces, scalars)
+    phase = get_phase(cond)
     r_ϵ = minimum_allowable_root(eos, forces, scalars)
     max_r = maximum(roots)
     min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
@@ -160,7 +147,23 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
         B_i = zeros(eT, n)
     end
     coeff = (A_ij = A_ij, A_i = A_i, B_i = B_i)
-    force_coefficients!(coeff, eos, cond)
+    update_force_coefficients!(coeff, eos, cond)
+    return coeff
+end
+
+function get_force_coefficients(forces, eos, cond)
+    if forces_per_phase(eos)
+        phase = get_phase(cond)
+        if phase == :liquid
+            return forces.liquid
+        elseif phase == :vapor
+            return forces.vapor
+        else
+            error("Forces per phase are only supported for liquid and vapor phases, not $phase.")
+        end
+    else
+        return forces
+    end
 end
 
 """
@@ -170,10 +173,22 @@ In-place update of force coefficients.
 
 See also [`force_coefficients`](@ref)
 """
-function force_coefficients!(coeff, eos::AbstractCubicEOS, arg...)
-    update_attractive_linear!(coeff.A_i, eos, arg...)
-    update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, arg...)
-    update_repulsive!(coeff.B_i, eos, arg...)
+function force_coefficients!(coeff, eos::AbstractCubicEOS, cond)
+    if forces_per_phase(eos)
+        cond = set_phase(cond, :liquid)
+        update_force_coefficients!(coeff.liquid, eos, cond)
+        cond = set_phase(cond, :vapor)
+        update_force_coefficients!(coeff.vapor, eos, cond)
+    else
+        update_force_coefficients!(coeff, eos, cond)
+    end
+    return coeff
+end
+
+function update_force_coefficients!(coeff, eos::AbstractCubicEOS, cond)
+    update_attractive_linear!(coeff.A_i, eos, cond)
+    update_attractive_quadratic!(coeff.A_ij, coeff.A_i, eos, cond)
+    update_repulsive!(coeff.B_i, eos, cond)
     return coeff
 end
 
@@ -201,7 +216,7 @@ function update_attractive_quadratic!(A_ij, A_i, eos::AbstractCubicEOS, cond)
     T = eltype(A_i)
     for i = 1:N
         @inbounds for j = i:N
-            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j))
+            a = sqrt(A_i[i]*A_i[j])*(one(T) - binary_interaction(eos, i, j, cond))
             a::T
             A_ij[i, j] = a
             A_ij[j, i] = a
@@ -227,7 +242,8 @@ end
 Compute EOS specific scalars for the current conditions based on the forces.
 """
 function force_scalars(eos::AbstractCubicEOS, cond, forces)
-    return cubic_scalars(forces.A_ij, forces.B_i, cond.z)
+    f = get_force_coefficients(forces, eos, cond)
+    return cubic_scalars(f.A_ij, f.B_i, cond.z)
 end
 
 function cubic_scalars(A_ij, Bv, z)
@@ -279,7 +295,8 @@ Base.@propagate_inbounds function component_fugacity_coefficient(eos::AbstractCu
     # NOTE: This returns ln(ψ), not ψ!
     m1 = eos.m_1
     m2 = eos.m_2
-    return component_fugacity_coefficient_cubic(m1, m2, cond.z, Z, scalars.A, scalars.B, forces.A_ij, forces.B_i, i)
+    f = get_force_coefficients(forces, eos, cond)
+    return component_fugacity_coefficient_cubic(m1, m2, cond.z, Z, scalars.A, scalars.B, f.A_ij, f.B_i, i)
 end
 
 Base.@propagate_inbounds function component_fugacity_coefficient_cubic(m1, m2, x, Z, A, B, A_mat, B_i, i)

@@ -16,7 +16,8 @@ function property_abbreviations()
         "C9" => "n-Nonane",
         "C10" => "n-Decane",
         "C11" => "n-Undecane",
-        "C12" => "n-Dodecane"
+        "C12" => "n-Dodecane",
+        "H2S" => "HydrogenSulfide"
     )
     return abbreviations
 end
