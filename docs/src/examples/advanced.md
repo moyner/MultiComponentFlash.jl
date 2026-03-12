@@ -31,7 +31,7 @@ If many flashes of the same mixture are to be performed at different conditions,
 m = SSIFlash()
 K = zeros(number_of_components(eos))
 S = flash_storage(eos, conditions, method = m)
-@allocated V = flash_2ph!(S, K, eos, conditions, method = m)
+@allocated flash_2ph!(S, K, eos, conditions, method = m)
 
 # output
 
