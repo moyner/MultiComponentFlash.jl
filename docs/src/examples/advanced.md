@@ -139,3 +139,11 @@ xlabel!("T [°Celsius]")
 ```
 
 ![Phase diagram](../assets/phase_diagram_simple.png)
+
+### PVT table generation
+
+There is experimental support for generating simulator input blackoil tables (e.g. PVTG/PVDG and PVTO/PVDO).
+
+```@docs
+generate_pvt_tables
+```

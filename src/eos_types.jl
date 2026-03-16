@@ -88,9 +88,12 @@ struct RedlichKwong <: AbstractGeneralizedCubic end
 
 Specialized cubic equation of state for Søreide-Whitson EOS.
 
-See "Peng-Robinson predictions for hydrocarbons, CO2, N2, and H₂S with pure
-water and NaCl brine" by I. Søreide and C. Whitson, Fluid Phase Equilibria 77,
-1992.
+See "Peng-Robinson predictions for hydrocarbons, CO₂, N₂, and H₂S with pure
+water and NaCl brine" by I. Søreide and C. Whitson, Fluid Phase Equilibria 77 (1992).
+
+Note that this EOS requires water to be present in the mixture by name (it is
+after all the whole point of the Søreide-Whitson EOS). Special treatment is
+used for H2S, CO2, and N2 when given by name.
 """
 struct SoreideWhitson{T} <: AbstractPengRobinson
     A::NTuple{3, T}

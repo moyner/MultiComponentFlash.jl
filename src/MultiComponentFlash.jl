@@ -12,7 +12,7 @@ module MultiComponentFlash
     include("flash_types.jl")
     include("flow_coupler_types.jl")
     # Types that define specific cubic equations of state
-    export SoaveRedlichKwong, RedlichKwong, PengRobinson, PengRobinsonCorrected, ZudkevitchJoffe
+    export SoaveRedlichKwong, RedlichKwong, PengRobinson, PengRobinsonCorrected, ZudkevitchJoffe, SoreideWhitson
     # The generic cubic form that supports the above
     export GenericCubicEOS
     # KValue "fake" EOS
@@ -57,4 +57,8 @@ module MultiComponentFlash
 
     include("flow_coupler.jl")
     include("utils.jl")
+
+    include("PVTExperiments/PVTExperiments.jl")
+    using .PVTExperiments
+    export generate_pvt_tables
 end
