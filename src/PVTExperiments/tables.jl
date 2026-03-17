@@ -295,8 +295,8 @@ function pvtg_table(eos, z, T;
         z_first = zeros(length(z))
         z_first[1] = 1.0
         props_dry = flash_and_properties(eos, p, T, z_first)
-        push!(bg_entries, props_dry.V_mol_v / V_mol_sc)
-        push!(mu_entries, props_dry.μ_v)
+        pushfirst!(bg_entries, props_dry.V_mol_v / V_mol_sc)
+        pushfirst!(mu_entries, props_dry.μ_v)
 
         push!(p_values, p)
         push!(Rv_sat_values, Rv)
