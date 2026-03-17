@@ -5,7 +5,7 @@ High-level interface that generates complete black oil PVT tables from a
 compositional fluid description.
 
 Goes from a fluid sample, reservoir temperature and surface conditions to
-PVTO/PVDG (or PVTG/PVDG) tables + surface densities.
+PVTO/PVDG/PVDO (or PVTG/PVDG/PVDO) tables + surface densities.
 
 # Arguments
 - `eos`: Equation of state (e.g., `GenericCubicEOS(mixture, PengRobinson())`)
@@ -25,13 +25,15 @@ PVTO/PVDG (or PVTG/PVDG) tables + surface densities.
 - `n_pvto`: Number of Rs levels for PVTO. Default: 15
 - `n_pvtg`: Number of pressure levels for PVTG. Default: 15
 - `n_pvdg`: Number of pressure points for PVDG. Default: 20
+- `n_pvdo`: Number of pressure points for PVDO. Default: 20
 - `n_undersaturated`: Undersaturated points per level. Default: 5
 
 # Returns
-A NamedTuple with fields:
+A `PVTTableSet` instance with fields:
 - `pvto`: PVTOTable or `nothing`
 - `pvtg`: PVTGTable or `nothing`
 - `pvdg`: PVDGTable
+- `pvdo`: PVDOTable
 - `surface_densities`: SurfaceDensities
 - `saturation_pressure`: Saturation pressure (Pa)
 - `is_bubblepoint`: Whether the fluid has a bubble point (oil) or dew point (gas)
@@ -46,6 +48,7 @@ function generate_pvt_tables(eos, z, T_res;
         n_pvto = 15,
         n_pvtg = 15,
         n_pvdg = 20,
+        n_pvdo = 20,
         n_undersaturated = 5
     )
     z = collect(Float64, z)
@@ -113,6 +116,24 @@ function generate_pvt_tables(eos, z, T_res;
         T_sc = T_sc
     )
 
+    # PVDO is always generated
+    # For oil systems, use the overall composition
+    # For gas systems, use the oil composition from the first condensation step
+    if is_bp
+        z_oil_dead = z
+    else
+        # Get oil composition near dew point
+        props_dp = flash_and_properties(eos, p_sat * 0.95, T_res, z)
+        z_oil_dead = props_dp.x
+    end
+
+    pvdo_result = pvdo_table(eos, z_oil_dead, T_res;
+        p_range = p_range,
+        n_points = n_pvdo,
+        p_sc = p_sc,
+        T_sc = T_sc
+    )
+
     # Surface densities
     sd = surface_densities(eos, z, T_res;
         p_sc = p_sc,
@@ -120,12 +141,13 @@ function generate_pvt_tables(eos, z, T_res;
         separator_stages = separator_stages
     )
 
-    return (
-        pvto = pvto_result,
-        pvtg = pvtg_result,
-        pvdg = pvdg_result,
-        surface_densities = sd,
-        saturation_pressure = p_sat,
-        is_bubblepoint = is_bp
+    return PVTTableSet(
+        pvto_result,
+        pvtg_result,
+        pvdg_result,
+        pvdo_result,
+        sd,
+        p_sat,
+        is_bp
     )
 end

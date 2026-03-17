@@ -199,6 +199,22 @@ struct PVTGTable
 end
 
 """
+    PVDOTable
+
+Black oil PVDO (dead oil) table.
+
+# Fields
+- `p`: Pressure values (Pa)
+- `Bo`: Oil formation volume factor (m³/m³)
+- `mu_o`: Oil viscosity (Pa·s)
+"""
+struct PVDOTable
+    p::Vector{Float64}
+    Bo::Vector{Float64}
+    mu_o::Vector{Float64}
+end
+
+"""
     SurfaceDensities
 
 Surface densities of oil and gas at standard conditions.
@@ -210,4 +226,28 @@ Surface densities of oil and gas at standard conditions.
 struct SurfaceDensities
     oil::Float64
     gas::Float64
+end
+
+"""
+    PVTTableSet
+
+Collection of black oil PVT tables generated from a compositional fluid description.
+
+# Fields
+- `pvto`: Live oil table (PVTO) or `nothing` if not applicable
+- `pvtg`: Wet gas table (PVTG) or `nothing` if not applicable
+- `pvdg`: Dry gas table (PVDG)
+- `pvdo`: Dead oil table (PVDO)
+- `surface_densities`: Oil and gas densities at standard conditions
+- `saturation_pressure`: Bubble or dew point pressure (Pa)
+- `is_bubblepoint`: `true` if the fluid has a bubble point (oil), `false` if dew point (gas)
+"""
+struct PVTTableSet
+    pvto::Union{PVTOTable, Nothing}
+    pvtg::Union{PVTGTable, Nothing}
+    pvdg::PVDGTable
+    pvdo::PVDOTable
+    surface_densities::SurfaceDensities
+    saturation_pressure::Float64
+    is_bubblepoint::Bool
 end
