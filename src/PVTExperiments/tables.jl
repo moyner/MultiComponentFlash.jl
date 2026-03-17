@@ -288,9 +288,9 @@ function pvtg_table(eos, z, T;
         end
 
         # Add zero Rv entry
-        push!(rv_entries, 0.0)
+        pushfirst!(rv_entries, 0.0)
         # Dry gas Bg and viscosity
-    # Use the lightest component (index 1) as a proxy for dry gas.
+        # Use the lightest component (index 1) as a proxy for dry gas.
         # This assumes the mixture is ordered with the lightest component first.
         z_first = zeros(length(z))
         z_first[1] = 1.0
