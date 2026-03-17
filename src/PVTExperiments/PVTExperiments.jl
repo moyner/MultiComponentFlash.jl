@@ -21,5 +21,5 @@ module PVTExperiments
     include("tables.jl")
     include("interface.jl")
 
-    export generate_pvt_tables
+    export generate_pvt_tables, PVTTableSet
 end

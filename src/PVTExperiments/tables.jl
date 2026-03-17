@@ -314,6 +314,47 @@ function pvtg_table(eos, z, T;
 end
 
 """
+    pvdo_table(eos, z, T; p_range, n_points, p_sc, T_sc)
+
+Generate a PVDO (dead oil) table.
+
+# Arguments
+- `eos`: Equation of state
+- `z`: Oil composition (mole fractions)
+- `T`: Temperature (K)
+- `p_range`: Pressure range. Default: (50e6, 1e5)
+- `n_points`: Number of pressure points. Default: 20
+- `p_sc`: Standard condition pressure (Pa). Default: 101325.0
+- `T_sc`: Standard condition temperature (K). Default: 288.706
+"""
+function pvdo_table(eos, z, T;
+        p_range = (50e6, 1e5),
+        n_points = 20,
+        p_sc = 101325.0,
+        T_sc = 288.706
+    )
+    z = collect(Float64, z)
+    z ./= sum(z)
+
+    pressures = collect(range(p_range[2], p_range[1], length = n_points))
+    sort!(pressures)
+
+    Bo_arr = zeros(n_points)
+    mu_o_arr = zeros(n_points)
+
+    props_sc = flash_and_properties(eos, p_sc, T_sc, z)
+    V_mol_sc = props_sc.V_mol_l
+
+    for (i, p) in enumerate(pressures)
+        props = flash_and_properties(eos, p, T, z)
+        Bo_arr[i] = props.V_mol_l / V_mol_sc
+        mu_o_arr[i] = props.μ_l
+    end
+
+    return PVDOTable(pressures, Bo_arr, mu_o_arr)
+end
+
+"""
     surface_densities(eos, z, T; p_sc, T_sc, separator_stages)
 
 Compute surface densities of oil and gas at standard conditions.

@@ -147,6 +147,19 @@ import MultiComponentFlash.PVTExperiments as PVTExp
         @test contains(output, "PVDG")
     end
 
+    @testset "PVDO Table" begin
+        table = PVTExp.pvdo_table(eos, z_oil, T_res; n_points = 10)
+        @test table isa PVTExp.PVDOTable
+        @test length(table.p) == 10
+        @test all(table.Bo .> 0)
+        @test all(table.mu_o .> 0)
+        # Test printing
+        io = IOBuffer()
+        show(io, table)
+        output = String(take!(io))
+        @test contains(output, "PVDO")
+    end
+
     @testset "PVTG Table" begin
         table = PVTExp.pvtg_table(eos, z_gas, T_res; n_rv = 5, n_undersaturated = 2)
         @test table isa PVTExp.PVTGTable
@@ -178,18 +191,27 @@ import MultiComponentFlash.PVTExperiments as PVTExp
 
     @testset "High-Level Interface - Oil" begin
         tables = generate_pvt_tables(eos, z_oil, T_res;
-            n_pvto = 5, n_pvdg = 10, n_undersaturated = 2)
+            n_pvto = 5, n_pvdg = 10, n_pvdo = 10, n_undersaturated = 2)
+        @test tables isa PVTExp.PVTTableSet
         @test tables.pvto !== nothing
         @test tables.pvdg !== nothing
+        @test tables.pvdo !== nothing
         @test tables.surface_densities isa PVTExp.SurfaceDensities
         @test tables.saturation_pressure > 0
         @test tables.is_bubblepoint == true
+        # Test printing
+        io = IOBuffer()
+        show(io, tables)
+        output = String(take!(io))
+        @test contains(output, "PVTTableSet")
     end
 
     @testset "High-Level Interface - Gas" begin
         tables = generate_pvt_tables(eos, z_gas, T_res;
-            n_pvtg = 5, n_pvdg = 10)
+            n_pvtg = 5, n_pvdg = 10, n_pvdo = 10)
+        @test tables isa PVTExp.PVTTableSet
         @test tables.pvdg !== nothing
+        @test tables.pvdo !== nothing
         @test tables.surface_densities isa PVTExp.SurfaceDensities
         @test tables.saturation_pressure > 0
     end
@@ -201,9 +223,11 @@ import MultiComponentFlash.PVTExperiments as PVTExp
         ]
         tables = generate_pvt_tables(eos, z_oil, T_res;
             separator_stages = stages,
-            n_pvto = 5, n_pvdg = 10, n_undersaturated = 2)
+            n_pvto = 5, n_pvdg = 10, n_pvdo = 10, n_undersaturated = 2)
+        @test tables isa PVTExp.PVTTableSet
         @test tables.pvto !== nothing
         @test tables.pvdg !== nothing
+        @test tables.pvdo !== nothing
         @test tables.surface_densities isa PVTExp.SurfaceDensities
     end
 end

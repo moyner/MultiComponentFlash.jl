@@ -328,3 +328,27 @@ function Base.show(io::IO, s::SurfaceDensities)
     @printf(io, "  Oil: %.2f kg/m³\n", s.oil)
     @printf(io, "  Gas: %.4f kg/m³\n", s.gas)
 end
+
+function Base.show(io::IO, t::PVDOTable)
+    println(io, "PVDO Table")
+    println(io, "=" ^ 60)
+    @printf(io, "%14s %12s %12s\n", "P (Pa)", "Bo", "μ_o (Pa·s)")
+    println(io, "-" ^ 60)
+    for i in eachindex(t.p)
+        @printf(io, "%14.4e %12.6f %12.4e\n", t.p[i], t.Bo[i], t.mu_o[i])
+    end
+end
+
+function Base.show(io::IO, s::PVTTableSet)
+    println(io, "PVTTableSet")
+    println(io, "=" ^ 60)
+    bp_str = s.is_bubblepoint ? "bubble point (oil)" : "dew point (gas)"
+    @printf(io, "Saturation pressure: %.4e Pa (%.2f bar) [%s]\n",
+        s.saturation_pressure, s.saturation_pressure / 1e5, bp_str)
+    println(io, "-" ^ 60)
+    println(io, "  pvto: ", isnothing(s.pvto) ? "nothing" : "PVTOTable ($(length(s.pvto.Rs)) Rs levels)")
+    println(io, "  pvtg: ", isnothing(s.pvtg) ? "nothing" : "PVTGTable ($(length(s.pvtg.p)) pressure levels)")
+    println(io, "  pvdg: PVDGTable ($(length(s.pvdg.p)) pressure points)")
+    println(io, "  pvdo: PVDOTable ($(length(s.pvdo.p)) pressure points)")
+    show(io, s.surface_densities)
+end
