@@ -107,7 +107,7 @@ function pvto_table(eos, z, T;
 
         # Properties at bubble point
         props_bub = flash_and_properties(eos, p_bubble, T, z_oil_at_level)
-        Bo_bub = props_bub.V_mol_l / (V_oil_st / liq_frac)
+        Bo_bub = props_bub.V_mol_l / V_oil_st
 
         # Saturated entry
         p_entries = Float64[p_bubble]
@@ -121,7 +121,7 @@ function pvto_table(eos, z, T;
             for k in 1:n_undersaturated
                 p_us = p_bubble + k * dp
                 props_us = flash_and_properties(eos, p_us, T, z_oil_at_level)
-                Bo_us = props_us.V_mol_l / (V_oil_st / liq_frac)
+                Bo_us = props_us.V_mol_l / V_oil_st
                 push!(p_entries, p_us)
                 push!(Bo_entries, Bo_us)
                 push!(mu_entries, props_us.μ_l)
@@ -130,7 +130,7 @@ function pvto_table(eos, z, T;
             if p_range[1] > p_bubble + 1e5 && extend
                 # Add an entry at p_range[1] if it's above bubble point
                 props_us = flash_and_properties(eos, p_range[1], T, z_oil_at_level)
-                Bo_us = props_us.V_mol_l / (V_oil_st / liq_frac)
+                Bo_us = props_us.V_mol_l / V_oil_st
                 push!(p_entries, p_range[1])
                 push!(Bo_entries, Bo_us)
                 push!(mu_entries, props_us.μ_l)

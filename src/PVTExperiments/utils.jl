@@ -99,7 +99,7 @@ function flash_and_properties(eos, p, T, z)
     z_work = copy(z)
     result = flashed_mixture_2ph(eos, (p = p, T = T, z = z_work); method = SSIFlash())
     state = result.state
-    V = result.V
+    V = clamp(result.V, 0.0, 1.0)
 
     if state == MultiComponentFlash.two_phase_lv
         x = copy(result.liquid.mole_fractions)
@@ -196,6 +196,7 @@ function separator_flash(eos, z_feed, stages::Vector{SeparatorStage})
 
     for (i, stage) in enumerate(stages)
         props = flash_and_properties(eos, stage.p, stage.T, z_current)
+        @assert props.V >= 0.0 && props.V <= 1.0 "Flash failed at stage $i with p=$(stage.p) Pa and T=$(stage.T) K, V=$(props.V)"
         if props.state == MultiComponentFlash.two_phase_lv
             gas_compositions[i] = copy(props.y)
             oil_compositions[i] = copy(props.x)
