@@ -51,6 +51,9 @@ function generate_pvt_tables(eos, z, T_res;
         n_pvdo = 20,
         n_undersaturated = 5
     )
+    if p_range[1] <= p_range[2]
+        p_range = (p_range[2], p_range[1])
+    end
     z = collect(Float64, z)
     z ./= sum(z)
 

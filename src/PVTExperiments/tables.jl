@@ -13,6 +13,7 @@ Generate a PVTO (live oil) table from DLE or MSS experiment data.
 - `p_sc`: Standard condition pressure (Pa). Default: 101325.0
 - `T_sc`: Standard condition temperature (K). Default: 288.706
 - `separator_stages`: Optional separator stages. If provided, MSS is used for surface conditions.
+- `extend`: Whether to extend the table with an entry at p_range[1] if it's above bubble point. Default: true.
 """
 function pvto_table(eos, z, T;
         p_range = (50e6, 1e5),
@@ -20,7 +21,8 @@ function pvto_table(eos, z, T;
         n_undersaturated = 5,
         p_sc = 101325.0,
         T_sc = 288.706,
-        separator_stages = nothing
+        separator_stages = nothing,
+        extend = true
     )
     z = collect(Float64, z)
     z ./= sum(z)
@@ -121,6 +123,15 @@ function pvto_table(eos, z, T;
                 props_us = flash_and_properties(eos, p_us, T, z_oil_at_level)
                 Bo_us = props_us.V_mol_l / (V_oil_st / liq_frac)
                 push!(p_entries, p_us)
+                push!(Bo_entries, Bo_us)
+                push!(mu_entries, props_us.μ_l)
+            end
+
+            if p_range[1] > p_bubble + 1e5 && extend
+                # Add an entry at p_range[1] if it's above bubble point
+                props_us = flash_and_properties(eos, p_range[1], T, z_oil_at_level)
+                Bo_us = props_us.V_mol_l / (V_oil_st / liq_frac)
+                push!(p_entries, p_range[1])
                 push!(Bo_entries, Bo_us)
                 push!(mu_entries, props_us.μ_l)
             end
