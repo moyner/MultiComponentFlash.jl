@@ -1,6 +1,6 @@
 name = "MultiComponentFlash"
 uuid = "35e5bd01-9722-4017-9deb-64a5d32478ff"
-version = "1.1.19"
+version = "1.1.20"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
 
 [deps]
@@ -14,7 +14,7 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 ForwardDiff = "0.10, 1"
 LinearAlgebra = "1"
 Printf = "1"
-Roots = "1, 2"
+Roots = "1, 2, 3"
 StaticArrays = "1"
 julia = "1.6"
 
