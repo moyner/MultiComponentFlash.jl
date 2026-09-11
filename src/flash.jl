@@ -36,54 +36,10 @@ function flash_2ph(eos, c::T, K = initial_guess_K(eos, c), V = NaN; method = SSI
     return flash_2ph(eos, c, K, V, FlashConfig(); method = method, kwarg...)
 end
 
-@inline function flash_2ph(eos::GenericCubicEOS{E, R, N}, c,
-        K::SVector{N, F}, V, config::FlashConfig{false, false};
-        method::SSIFlash = SSIFlash(),
-        verbose::Bool = false,
-        maxiter::Int = 25000,
-        tolerance::Float64 = 1e-8,
-        extra_out::Bool = false,
-        update_forces::Bool = true,
-        check::Bool = true,
-        z_min = MINIMUM_COMPOSITION,
-        kwarg...
-    ) where {E, R, N, F}
-    z = if isnothing(z_min)
-        c.z
-    else
-        SVector{N, F}(ntuple(i -> max(c.z[i], z_min), Val(N)))
-    end
-    cond = (p = c.p, T = c.T, z = z)
-    forces = force_coefficients_stack(eos, cond, F)
-    V = convert(F, V)
-    single_phase_init = isnan(V) || V == one(F) || V == zero(F)
-    if single_phase_init
-        stable, stability_report, K = stability_2ph_stack(
-            K, eos, cond, forces; maxiter = maxiter, kwarg...)
-    else
-        stable = false
-        stability_report = StabilityReport(false, false, false, false)
-    end
-    converged = false
-    if stable
-        iteration = 0
-    else
-        iteration = 1
-        if isnan(V)
-            V = solve_rachford_rice(K, z, V)
-        end
-        while true
-            V, K, residual = ssi_stack(K, cond.p, cond.T, z, V, eos, forces)
-            converged = residual <= tolerance
-            (converged || iteration == maxiter) && break
-            iteration += 1
-        end
-    end
-    out = (V, K, (its = iteration, converged = converged, stability = stability_report))
-    return extra_out ? out : out[1]
-end
-
 function flash_2ph(eos, c::T, K, V, config::FlashConfig; method = SSIFlash(), kwarg...) where T
+    if !use_dict_storage(config)
+        return flash_2ph(eos, c, K, V, StaticConfig(); method = method, kwarg...)
+    end
     nc = number_of_components(eos)
     if print_output(config)
         @assert hasfield(T, :p)
@@ -173,7 +129,7 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
             V = solve_rachford_rice(K, z, V)
         end
         while true
-            V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i, config)
+            V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i)
             converged = ϵ ≤ tolerance
             if converged || i == maxiter
                 if print_output(config) && verbose
@@ -205,87 +161,38 @@ Pre-allocate storage for `flash_2ph!`.
 
 # Keyword arguments
 - `method = SSIFlash()`: Flash method to use. Can be `SSIFlash()`, `NewtonFlash()` or `SSINewtonFlash()`.
-- `static_size = false`: Use `SArrays` and `MArrays` for fast flash, but slower compile times.
+- `static = false`: Return fully static, GPU-compatible storage when `true`. The
+  static path currently supports `SSIFlash`.
 - `inc_jac`: Allocate storage for Newton/Jacobian. Required for Newton (and defaults to `true` for that method) or for `diff_externals`.
 - `diff_externals = false`: Allocate storage for matrix inversion required to produce partial derivatives of flash using `set_partials`.
 
 See also: [`flash_2ph!`](@ref) [`set_partials`](@ref)
 """
-function flash_storage(eos, cond = (p = 10e5, T = 273.15, z = zeros(number_of_components(eos))); method = SSIFlash(), kwarg...)
-    return flash_storage(eos, cond, method, FlashConfig(); kwarg...)
+function flash_storage(eos, cond = (p = 10e5, T = 273.15, z = zeros(number_of_components(eos)));
+        method = SSIFlash(), static::Bool = false, static_size = nothing, kwarg...)
+    isnothing(static_size) || throw(ArgumentError(
+        "`static_size` has been replaced by `static`; use `static=true` for the fully static path."))
+    config = static ? StaticConfig() : FlashConfig()
+    return flash_storage(eos, cond, method, config; kwarg...)
 end
 
-function flash_storage(eos, cond, method, config::FlashConfig{PrintOutput, true}; kwarg...) where PrintOutput
+function flash_storage(eos, cond, method, config::FlashConfig; kwarg...)
+    if !use_dict_storage(config)
+        return flash_storage(eos, cond, method, StaticConfig(); kwarg...)
+    end
     out = Dict{Symbol,Any}()
     d = flash_storage_internal!(out, eos, cond, method; kwarg...)
     # Convert to named tuple
     return NamedTuple(pairs(d))
 end
 
-"""
-    flash_storage_static(eos, cond, [method])
-
-Construct an inline, statically sized SSI workspace without using the `Dict`-based
-host storage builder. This constructor is suitable for use inside accelerator
-kernels when `eos` and `cond` are isbits values.
-"""
-function flash_storage(eos::GenericCubicEOS{E, R, N}, cond, method::SSIFlash, config::FlashConfig{PrintOutput, false}) where {E, R, N, PrintOutput}
-    T = eltype(cond.z)
-    return flash_storage(eos, cond, method, config, T)
-end
-
-@inline function flash_storage(eos::GenericCubicEOS{E, R, N}, cond, method::SSIFlash,
-        config::FlashConfig{PrintOutput, false}, ::Type{T}) where {E, R, N, PrintOutput, T}
-    forces = force_coefficients_static(eos, cond, T)
-    return (
-        forces = forces,
-        x = zero(MVector{N, T}),
-        y = zero(MVector{N, T}),
-        buffer1 = zero(MVector{N, T}),
-        buffer2 = zero(MVector{N, T})
-    )
-end
-
-
-flash_storage_static(eos, cond, method::SSIFlash = SSIFlash()) =
-    flash_storage(eos, cond, method, FlashConfig{false, false}())
-
-
-"""
-    flash_2ph_static(eos, cond, K, V[, maxiter, tolerance])
-
-Compatibility wrapper around the config-driven flash implementation using entirely
-local static storage and no host-side diagnostics.
-Returns `(V, K, iterations, converged)`.
-"""
-@inline flash_2ph_static(eos, cond, K, V) =
-    flash_2ph_static(eos, cond, K, V, 25000, 1e-8)
-
-@inline function flash_2ph_static(
-        eos::GenericCubicEOS{E, R, N}, cond, K::MVector{N, T}, V,
-        maxiter::Int, tolerance
-    ) where {E, R, N, T}
-    config = FlashConfig{false, false}()
-    storage = flash_storage(eos, cond, SSIFlash(), config, T)
-    V, K, report = flash_2ph_impl!(storage, K, eos, cond, V, config;
-        method = SSIFlash(),
-        maxiter = maxiter,
-        tolerance = tolerance,
-        verbose = false,
-        check = false,
-        z_min = nothing
-    )
-    return (V, K, report.its, report.converged)
-end
-
 function flash_storage_internal!(out, eos, cond, method;
         inc_jac = isa(method, AbstractNewtonFlash),
         inc_bypass = false,
-        static_size = false,
         kwarg...
     )
     n = number_of_components(eos)
-    alloc_forces(c) = force_coefficients(eos, c, static_size = static_size)
+    alloc_forces(c) = force_coefficients(eos, c)
     if forces_per_phase(eos)
         cond = set_phase(cond, :liquid)
         lforces = alloc_forces(cond)
@@ -295,47 +202,31 @@ function flash_storage_internal!(out, eos, cond, method;
     else
         out[:forces] = alloc_forces(cond)
     end
-    if static_size
-        # Do not write `@MVector zeros(n)` here.  That form first creates a
-        # regular Vector and then copies it into the MVector.  Apart from the
-        # unnecessary allocation, this is particularly inconvenient for GPU
-        # callers since the temporary is a host array.  Construct the
-        # tuple-backed static array directly instead.
-        alloc_vec = () -> zero(MVector{n, eltype(cond.z)})
-    else
-        alloc_vec = () -> zeros(n)
-    end
+    alloc_vec = () -> zeros(n)
     out[:x] = alloc_vec()
     out[:y] = alloc_vec()
 
     out[:buffer1] = alloc_vec()
     out[:buffer2] = alloc_vec()
     if inc_jac
-        flash_storage_internal_newton!(out, eos, cond, method, static_size = static_size; kwarg...)
+        flash_storage_internal_newton!(out, eos, cond, method; kwarg...)
     end
     if inc_bypass
-        out[:bypass] = michelsen_critical_point_measure_storage(eos, static_size = static_size)
+        out[:bypass] = michelsen_critical_point_measure_storage(eos, static_size = false)
     end
     return out
 end
 
-function flash_storage_internal_newton!(out, eos, cond, method; static_size = false, diff_externals = false, kwarg...)
+function flash_storage_internal_newton!(out, eos, cond, method; diff_externals = false, kwarg...)
     n = number_of_components(eos)
     np = 2*n + 1
     primary_ad(ix) = get_ad(0.0, np, typeof(ForwardDiff.Tag(Val(:Flash),Nothing)), ix)
     V_ad = primary_ad(np)
     T = typeof(V_ad)
-    if static_size
-        x_ad = zero(MVector{n, T})
-        y_ad = zero(MVector{n, T})
-        r = zero(MVector{np, Float64})
-        J = zero(MMatrix{np, np, Float64})
-    else
-        x_ad = zeros(T, n)
-        y_ad = zeros(T, n)
-        r = zeros(np)
-        J = zeros(np, np)
-    end
+    x_ad = zeros(T, n)
+    y_ad = zeros(T, n)
+    r = zeros(np)
+    J = zeros(np, np)
     out[:r] = r
     out[:J] = J
 
@@ -345,12 +236,12 @@ function flash_storage_internal_newton!(out, eos, cond, method; static_size = fa
     end
     out[:AD] = (x = x_ad, y = y_ad, V = V_ad)
     if diff_externals
-        flash_storage_internal_inverse!(out, eos, cond, method, static_size = static_size; kwarg...)
+        flash_storage_internal_inverse!(out, eos, cond, method; kwarg...)
     end
     return out
 end
 
-function flash_storage_internal_inverse!(out, eos, cond, method; static_size = false, npartials = nothing)
+function flash_storage_internal_inverse!(out, eos, cond, method; npartials = nothing)
     n = number_of_components(eos)
     np = length(out[:r])
     external_partials = n + 2 # p, T, z_1, ... z_n
@@ -358,28 +249,19 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     p_ad = secondary_ad(1)
     T_ad = secondary_ad(2)
     T_cond = typeof(p_ad)
-    if static_size
-        z_ad = zero(MVector{n, T_cond})
-        J_inv = zero(MMatrix{np, external_partials, Float64})
-    else
-        z_ad = zeros(T_cond, n)
-        J_inv = zeros(np, external_partials)
-    end
+    z_ad = zeros(T_cond, n)
+    J_inv = zeros(np, external_partials)
     out[:J_inv] = J_inv
     for i = 1:n
         z_ad[i] = secondary_ad(i+2)
     end
     cond_ad = (p = p_ad, T = T_ad, z = z_ad, phase = :liquid)
     if !isnothing(npartials)
-        if static_size
-            buf = zero(MVector{npartials, Float64})
-        else
-            buf = zeros(npartials)
-        end
+        buf = zeros(npartials)
         out[:buf_inv] = buf
     end
     out[:AD_cond] = cond_ad
-    out[:forces_secondary] = force_coefficients(eos, cond_ad, static_size = static_size)
+    out[:forces_secondary] = force_coefficients(eos, cond_ad)
 end
 
 function get_ad(v::T, npartials, tag, diag_pos = nothing) where {T<:Real}
@@ -396,59 +278,19 @@ function update_value(v::T, newv::Real) where T<:ForwardDiff.Dual
 end
 
 function flash_update!(K, storage, type::SSIFlash, eos, cond, forces, V, iteration)
-    return flash_update!(K, storage, type, eos, cond, forces, V, iteration, FlashConfig())
-end
-
-function flash_update!(K, storage, type::SSIFlash, eos, cond, forces, V, iteration, config::FlashConfig)
     z = cond.z
     x, y = storage.x, storage.y
     p, T = cond.p, cond.T
-    return ssi!(K, p, T, x, y, z, V, eos, forces, config)
+    return ssi!(K, p, T, x, y, z, V, eos, forces)
 end
 
 function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
-    return ssi!(K, p, T, x, y, z, V, eos, forces, FlashConfig())
-end
-
-@inline function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces, config::FlashConfig) where {F<:Real}
-    liquid_phase = phase_value(config, Val(:liquid))
-    vapor_phase = phase_value(config, Val(:vapor))
-    return ssi_with_phases!(K, p, T, x, y, z, V, eos, forces, liquid_phase, vapor_phase)
-end
-
-@inline function static_fugacities(eos::GenericCubicEOS{E, R, N}, cond, forces,
-        ::Type{F}) where {E, R, N, F}
-    Z, scalars = prep(eos, cond, forces)
-    return SVector{N, F}(ntuple(Val(N)) do component
-        component_fugacity(eos, cond, component, Z, forces, scalars)
-    end)
-end
-
-@inline function ssi_stack(K::SVector{N, F}, p::F, T::F, z, V::F,
-        eos, forces) where {N, F<:Real}
-    x = SVector{N, F}(ntuple(i -> liquid_mole_fraction(z[i], K[i], V), Val(N)))
-    y = SVector{N, F}(ntuple(i -> vapor_mole_fraction(x[i], K[i]), Val(N)))
-    liquid = (p = p, T = T, z = x, phase = Val(:liquid))
-    vapor = (p = p, T = T, z = y, phase = Val(:vapor))
-    f_l = static_fugacities(eos, liquid, forces, F)
-    f_v = static_fugacities(eos, vapor, forces, F)
-    ratios = SVector{N, F}(ntuple(i -> f_l[i]/f_v[i], Val(N)))
-    residual = zero(F)
-    @inbounds for i in 1:N
-        residual = max(residual, abs(one(F) - ratios[i]))
-    end
-    K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
-    V_next = solve_rachford_rice(K_next, z, V)
-    return V_next, K_next, residual
-end
-
-function ssi_with_phases!(K, p::F, T::F, x, y, z, V::F, eos, forces, liquid_phase, vapor_phase) where {F<:Real}
     # Initialize conditions for vapor and liquid phases based on K-values
     x = liquid_mole_fraction!(x, z, K, V)
     y = vapor_mole_fraction!(y, x, K)
 
-    liquid = (p = p, T = T, z = x, phase = liquid_phase)
-    vapor = (p = p, T = T, z = y, phase = vapor_phase)
+    liquid = (p = p, T = T, z = x, phase = :liquid)
+    vapor = (p = p, T = T, z = y, phase = :vapor)
 
     Z_l, s_l = prep(eos, liquid, forces)
     Z_v, s_v = prep(eos, vapor, forces)
@@ -470,10 +312,6 @@ cap_unit(v) = min(max(v, zero(z)), one(z))
 cap_VL(v) = min(max(v, MINIMUM_COMPOSITION), 1 - MINIMUM_COMPOSITION)
 
 function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iteration)
-    return flash_update!(K, storage, type, eos, cond, forces, V, iteration, FlashConfig())
-end
-
-function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iteration, config::FlashConfig)
     x, y = storage.x, storage.y
     z = cond.z
     x = liquid_mole_fraction!(x, z, K, V)
@@ -566,14 +404,10 @@ function newton_dampen!(dMax, Δ)
 end
 
 function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V, iteration)
-    return flash_update!(K, storage, type, eos, cond, forces, V, iteration, FlashConfig())
-end
-
-function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V, iteration, config::FlashConfig)
     if iteration >= type.swap_iter
-        flash_update!(K, storage, NewtonFlash(type.dMax), eos, cond, forces, V, iteration, config)
+        flash_update!(K, storage, NewtonFlash(type.dMax), eos, cond, forces, V, iteration)
     else
-        flash_update!(K, storage, SSIFlash(), eos, cond, forces, V, iteration, config)
+        flash_update!(K, storage, SSIFlash(), eos, cond, forces, V, iteration)
     end
 end
 

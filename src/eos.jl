@@ -15,7 +15,6 @@ function get_phase(cond)
 end
 
 @inline phase_symbol(phase::Symbol) = phase
-@inline phase_symbol(::Val{phase}) where phase = phase
 
 function set_phase(cond, phase::Symbol, throw::Bool = false)
     if throw && haskey(cond, :phase) && cond.phase != :unknown
@@ -113,16 +112,6 @@ end
     return pick_root(eos, roots, cond, forces, scalars, phase)
 end
 
-@inline function pick_root(eos, roots, cond, forces, scalars, ::Val{:liquid})
-    min_r, _ = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
-    return min_r
-end
-
-@inline function pick_root(eos, roots, cond, forces, scalars, ::Val{:vapor})
-    _, max_r = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
-    return max_r
-end
-
 function pick_root(eos, roots, cond, forces, scalars, phase::Symbol)
     min_r, max_r = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
     if min_r == max_r || phase == :liquid
@@ -170,34 +159,6 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     return coeff
 end
 
-"""Construct inline force coefficients with the component count from the EOS type."""
-function force_coefficients_static(eos::GenericCubicEOS{E, R, N}, cond) where {E, R, N}
-    T = Base.promote_eltype(cond.p, cond.T, cond.z[1])
-    return force_coefficients_static(eos, cond, T)
-end
-
-function force_coefficients_static(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
-    coeff = (
-        A_ij = zero(MMatrix{N, N, T}),
-        A_i = zero(MVector{N, T}),
-        B_i = zero(MVector{N, T})
-    )
-    return update_force_coefficients!(coeff, eos, cond)
-end
-
-"""Immutable force coefficients for heap-free accelerator kernels."""
-@inline function force_coefficients_stack(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
-    A_i_static = SVector{N, T}(ntuple(i -> A_i(eos, cond, i), Val(N)))
-    B_i_static = SVector{N, T}(ntuple(i -> B_i(eos, cond, i), Val(N)))
-    A_ij_static = SMatrix{N, N, T}(ntuple(Val(N*N)) do index
-        i = mod1(index, N)
-        j = (index - 1) ÷ N + 1
-        sqrt(A_i_static[i]*A_i_static[j]) *
-            (one(T) - binary_interaction(eos, i, j, cond))
-    end)
-    return (A_ij = A_ij_static, A_i = A_i_static, B_i = B_i_static)
-end
-
 function get_force_coefficients(forces, eos, cond)
     if forces_per_phase(eos)
         phase = get_phase(cond)
@@ -212,8 +173,6 @@ function get_force_coefficients(forces, eos, cond)
         return forces
     end
 end
-
-@inline get_force_coefficients(forces, eos::GenericCubicEOS, cond) = forces
 
 """
     force_coefficients!(coeff, eos, cond)

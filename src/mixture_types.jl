@@ -82,21 +82,6 @@ struct MultiComponentMixture{R, N, Name, Names, BIC}
 end
 
 """
-    static_mixture(mixture)
-
-Return an isbits representation of a mixture for accelerator kernels. Human-readable
-metadata is omitted and binary-interaction coefficients are stored inline.
-"""
-function static_mixture(mixture::MultiComponentMixture{R, N}) where {R, N}
-    names = ntuple(_ -> nothing, Val(N))
-    bic = mixture.binary_interaction
-    if !isnothing(bic)
-        bic = SMatrix{N, N, R}(bic)
-    end
-    return MultiComponentMixture(mixture.properties; A_ij = bic, names = names, name = nothing)
-end
-
-"""
     MultiComponentMixture(names::Vector{String}; A_ij = nothing, name = "UnnamedMixture")
 
 Create a multicomponent mixture using name lookup for species.

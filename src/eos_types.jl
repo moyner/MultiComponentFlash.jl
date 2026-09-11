@@ -182,30 +182,6 @@ function GenericCubicEOS(setup::NamedTuple, mixture; volume_shift = nothing)
     return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b, volume_shift)
 end
 
-"""
-    static_eos(eos)
-
-Convert a generic cubic EOS to an isbits representation suitable for passing to
-accelerator kernels. The numerical model is unchanged; only descriptive metadata
-and array storage are converted.
-"""
-function static_eos(eos::GenericCubicEOS{T, R, N}) where {T, R, N}
-    mixture = static_mixture(eos.mixture)
-    volume_shift = eos.volume_shift
-    if !isnothing(volume_shift)
-        volume_shift = SVector{N, eltype(volume_shift)}(volume_shift)
-    end
-    return GenericCubicEOS(
-        eos.type,
-        mixture,
-        eos.m_1,
-        eos.m_2,
-        eos.ω_a,
-        eos.ω_b,
-        volume_shift
-    )
-end
-
 struct KValuesEOS{T, R, N, V} <: AbstractEOS
     "Callable on the form `cond -> V` or a set of constants (Tuple/AbstractVector)"
     K_values_evaluator::T

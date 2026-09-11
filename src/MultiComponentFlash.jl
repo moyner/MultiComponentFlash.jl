@@ -19,14 +19,14 @@ module MultiComponentFlash
     export KValuesEOS
     export number_of_components
     # Flash interfaces
-    export flash_2ph, flash_2ph!, flash_2ph_static, flash_storage, flash_storage_static
+    export flash_2ph, flash_2ph!, flash_storage
     export stability_2ph, stability_2ph!
     # Algorithms for flash
-    export SSIFlash, NewtonFlash, SSINewtonFlash, FlashConfig
+    export SSIFlash, NewtonFlash, SSINewtonFlash, FlashConfig, StaticConfig
     # Mixtures and their molecular makeup
     export MolecularProperty, MultiComponentMixture
     # K-values
-    export wilson_estimate, wilson_estimate!, initial_guess_K, initial_guess_K!, initial_guess_K_static
+    export wilson_estimate, wilson_estimate!, initial_guess_K, initial_guess_K!
     # Vapor-liquid equilibrium
     export solve_rachford_rice
 
@@ -54,6 +54,7 @@ module MultiComponentFlash
     include("flash.jl")
     include("derivatives.jl")
     include("stability.jl")
+    include("static.jl")
     include("tables.jl")
 
     include("flow_coupler.jl")

@@ -18,8 +18,7 @@ function flash_storage(eos::KValuesEOS, cond = missing; kwarg...)
     return nothing
 end
 
-flash_storage(eos::KValuesEOS, cond, method, config::FlashConfig{PrintOutput, true}) where PrintOutput = nothing
-flash_storage(eos::KValuesEOS, cond, method, config::FlashConfig{PrintOutput, false}) where PrintOutput = nothing
+flash_storage(eos::KValuesEOS, cond, method, config::FlashConfig) = nothing
 
 function flash_2ph!(storage, K, eos::KValuesEOS, cond, V = NaN; kwarg...)
     return solve_rachford_rice(K, cond.z, V)
@@ -27,6 +26,6 @@ end
 
 
 function flash_2ph!(storage, K, eos::KValuesEOS, cond, V,
-        config::FlashConfig{PrintOutput, UseDictStorage}; kwarg...) where {PrintOutput, UseDictStorage}
+        config::FlashConfig; kwarg...)
     return solve_rachford_rice(K, cond.z, V)
 end
