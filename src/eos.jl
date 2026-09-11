@@ -185,19 +185,6 @@ function force_coefficients_static(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T
     return update_force_coefficients!(coeff, eos, cond)
 end
 
-"""Immutable force coefficients for register-oriented accelerator kernels."""
-@inline function force_coefficients_stack(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
-    A_i_static = SVector{N, T}(ntuple(i -> A_i(eos, cond, i), Val(N)))
-    B_i_static = SVector{N, T}(ntuple(i -> B_i(eos, cond, i), Val(N)))
-    A_ij_static = SMatrix{N, N, T}(ntuple(Val(N*N)) do index
-        i = mod1(index, N)
-        j = (index - 1) ÷ N + 1
-        sqrt(A_i_static[i]*A_i_static[j]) *
-            (one(T) - binary_interaction(eos, i, j, cond))
-    end)
-    return (A_ij = A_ij_static, A_i = A_i_static, B_i = B_i_static)
-end
-
 function get_force_coefficients(forces, eos, cond)
     if forces_per_phase(eos)
         phase = get_phase(cond)

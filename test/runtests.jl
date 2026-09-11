@@ -68,6 +68,16 @@ end
     @test iterations_static == iterations
     @test V_static ≈ V
     @test K_static ≈ K
+
+    config = FlashConfig(print_output=false, use_dict_storage=false)
+    storage = flash_storage(eos, c, SSIFlash(), config)
+    K_config = initial_guess_K_static(eos, c)
+    V_config, K_config, report = flash_2ph!(storage, K_config, eos, c, NaN, config;
+        method=SSIFlash(), extra_out=true, z_min=nothing)
+    @test report.stability isa MultiComponentFlash.StabilityReport
+    @test report.converged
+    @test V_config ≈ V
+    @test K_config ≈ K
 end
 
 @testset "Partial derivatives" begin

@@ -70,5 +70,5 @@ end
 
 @inline function initial_guess_K_static(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
     properties = eos.mixture.properties
-    return SVector{N, T}(ntuple(i -> wilson_estimate(properties[i], cond.p, cond.T), Val(N)))
+    return MVector{N, T}(ntuple(i -> wilson_estimate(properties[i], cond.p, cond.T), Val(N)))
 end

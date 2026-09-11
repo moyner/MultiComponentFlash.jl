@@ -22,7 +22,7 @@ module MultiComponentFlash
     export flash_2ph, flash_2ph!, flash_2ph_static, flash_storage, flash_storage_static
     export stability_2ph, stability_2ph!
     # Algorithms for flash
-    export SSIFlash, NewtonFlash, SSINewtonFlash
+    export SSIFlash, NewtonFlash, SSINewtonFlash, FlashConfig
     # Mixtures and their molecular makeup
     export MolecularProperty, MultiComponentMixture
     # K-values

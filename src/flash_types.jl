@@ -4,6 +4,26 @@ abstract type AbstractFlash end
 abstract type AbstractNewtonFlash <: AbstractFlash end
 
 """
+    FlashConfig{PrintOutput, UseDictStorage}()
+    FlashConfig(; print_output=true, use_dict_storage=true)
+
+Compile-time configuration for the flash call graph. `PrintOutput=false` removes
+logging, warnings, and checked error paths from accelerator kernels.
+`UseDictStorage=false` selects direct static storage construction instead of the
+host-oriented `Dict` builder.
+"""
+struct FlashConfig{PrintOutput, UseDictStorage} end
+
+FlashConfig(; print_output::Bool = true, use_dict_storage::Bool = true) =
+    FlashConfig{print_output, use_dict_storage}()
+
+@inline print_output(::FlashConfig{PrintOutput}) where PrintOutput = PrintOutput
+@inline use_dict_storage(::FlashConfig{PrintOutput, UseDictStorage}) where {PrintOutput, UseDictStorage} = UseDictStorage
+
+@inline phase_value(::FlashConfig{PrintOutput, true}, ::Val{Phase}) where {PrintOutput, Phase} = Phase
+@inline phase_value(::FlashConfig{PrintOutput, false}, phase::Val) where PrintOutput = phase
+
+"""
     ssi = SSIFlash()
 
 Flash method that uses successive subtition. Unconditionally convergent, does

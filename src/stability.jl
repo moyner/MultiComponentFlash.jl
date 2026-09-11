@@ -8,11 +8,19 @@ This is done using a version of Michelsen's stability test.
 Reference: [The isothermal flash problem. Part I. Stability](https://doi.org/10.1016/0378-3812(82)85001-2)
 """
 function stability_2ph(eos, c, K = initial_guess_K(eos, c); kwarg...)
-    storage = flash_storage(eos, c)
-    stability_2ph!(storage, K, eos, c)
+    return stability_2ph(eos, c, K, FlashConfig(); kwarg...)
 end
 
-function stability_2ph!(storage, K, eos, c;
+function stability_2ph(eos, c, K, config::FlashConfig; kwarg...)
+    storage = flash_storage(eos, c, SSIFlash(), config)
+    stability_2ph!(storage, K, eos, c, config; kwarg...)
+end
+
+function stability_2ph!(storage, K, eos, c; kwarg...)
+    return stability_2ph!(storage, K, eos, c, FlashConfig(); kwarg...)
+end
+
+function stability_2ph!(storage, K, eos, c, config::FlashConfig;
         verbose::Bool = false,
         extra_out::Bool = false,
         check_vapor::Bool = true,
@@ -24,14 +32,16 @@ function stability_2ph!(storage, K, eos, c;
     f_xy = storage.buffer2
     x, y = storage.x, storage.y
     z, p, T = c.z, c.p, c.T
-    liquid = (p = p, T = T, z = x, phase = :liquid)
-    vapor = (p = p, T = T, z = y, phase = :vapor)
-    current_as_liquid = (p = p, T = T, z = z, phase = :liquid)
-    current_as_vapor = (p = p, T = T, z = z, phase = :vapor)
+    liquid_phase = phase_value(config, Val(:liquid))
+    vapor_phase = phase_value(config, Val(:vapor))
+    liquid = (p = p, T = T, z = x, phase = liquid_phase)
+    vapor = (p = p, T = T, z = y, phase = vapor_phase)
+    current_as_liquid = (p = p, T = T, z = z, phase = liquid_phase)
+    current_as_vapor = (p = p, T = T, z = z, phase = vapor_phase)
     mixture_fugacities!(f_z, eos, current_as_vapor, forces)
     if check_vapor
         wilson_estimate!(K, eos, p, T)
-        v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true); kwarg...)
+        v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true), config; kwarg...)
     else
         v = (true, true, 0)
     end
@@ -44,7 +54,7 @@ function stability_2ph!(storage, K, eos, c;
             mixture_fugacities!(f_z, eos, current_as_liquid, forces)
         end
         wilson_estimate!(K, eos, p, T)
-        l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false); kwarg...)
+        l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false), config; kwarg...)
     else
         l = (true, true, 0)
     end
@@ -59,7 +69,7 @@ function stability_2ph!(storage, K, eos, c;
     if !stable
         @. K = y/x
     end
-    if verbose
+    if print_output(config) && verbose
         @info "Stability done. Iterations:\nV: $i_v\nL: $i_l" stable_vapor stable_liquid stable
     end
     if extra_out
@@ -80,7 +90,13 @@ xy_value(z, K, ::Val{false}) = z/K
 
 In-place version of [`stability_2ph`](@ref). `storage` should be allocated by `flash_storage`.
 """
-function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, inside_is_vapor;
+function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, inside_is_vapor; kwarg...)
+    return michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces,
+        inside_is_vapor, FlashConfig(); kwarg...)
+end
+
+function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces,
+        inside_is_vapor, config::FlashConfig;
         tol_equil = 1e-10,
         tol_trivial = tol_equil,
         tol_sat = tol_trivial,
@@ -122,7 +138,9 @@ function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces, insid
         done = ok || iter == maxiter
         if done && !ok
             trivial = true
-            @warn "Stability test failed to converge in $maxiter iterations. Assuming stability." cond xy K_norm R_norm K
+            if print_output(config)
+                @warn "Stability test failed to converge in $maxiter iterations. Assuming stability." cond xy K_norm R_norm K
+            end
         end
     end
     stable = trivial || S <= 1.0 + tol_sat
