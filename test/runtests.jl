@@ -146,3 +146,43 @@ end
     @test MultiComponentFlash.michelsen_critical_point_measure(equation_of_state, 5e6, 303.15, z) ≈ 0.776435 atol = 1e-4
     @test MultiComponentFlash.michelsen_critical_point_measure(equation_of_state, 5e6, 303.15, z, static_size = false) ≈ 0.776435 atol = 1e-4
 end
+
+using StaticArrays, KernelAbstractions, JLArrays
+@testset "Static flash with KernelAbstractions/JLArrays" begin
+    @kernel function static_flash_kernel!(out, pressure, temperature, z, eos)
+        i = @index(Global)
+        if i <= length(out)
+            @inbounds cond = (p = pressure[i], T = temperature[i], z = z)
+            config = FlashConfig{false, false}()
+            K = initial_guess_K_static(eos, cond)
+            V = flash_2ph(eos, cond, K, NaN, config;
+                method = SSIFlash(), check = false, verbose = false, z_min = nothing)
+            @inbounds out[i] = V
+        end
+    end
+    if isdefined(JLArrays, :JLBackend)
+        host_eos = get_test_eos()
+        eos = static_eos(host_eos)
+        z = @SVector [0.5, 0.3, 0.2]
+        n = 16
+        pressure_host = collect(range(1e5, 4e6, length = n))
+        temperature_host = collect(range(280.0, 320.0, length = n))
+        expected = map(pressure_host, temperature_host) do p, T
+            flash_2ph(host_eos, (p = p, T = T, z = collect(z));
+                method = SSIFlash(), check = false)
+        end
+
+        pressure = JLArray(pressure_host)
+        temperature = JLArray(temperature_host)
+        out = JLArray(zeros(n))
+        backend = JLArrays.JLBackend()
+        kernel! = static_flash_kernel!(backend, 8)
+        kernel!(out, pressure, temperature, z, eos; ndrange = n)
+
+        @test Array(out) ≈ expected rtol = 1e-11
+    else
+        # JLArrays 0.1 supports Julia 1.6 but predates the KernelAbstractions backend.
+        @test_skip false
+    end
+end
+

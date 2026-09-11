@@ -12,6 +12,8 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 ForwardDiff = "0.10, 1"
+JLArrays = "0.1, 0.2, 0.3"
+KernelAbstractions = "0.9"
 LinearAlgebra = "1"
 Printf = "1"
 Roots = "1, 2, 3"
@@ -20,8 +22,10 @@ julia = "1.6"
 
 [extras]
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+JLArrays = "27aeb0d3-9eb9-45fb-866b-73c2ecf80fcb"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "ForwardDiff", "StaticArrays"]
+test = ["Test", "ForwardDiff", "JLArrays", "KernelAbstractions", "StaticArrays"]
