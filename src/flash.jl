@@ -36,6 +36,53 @@ function flash_2ph(eos, c::T, K = initial_guess_K(eos, c), V = NaN; method = SSI
     return flash_2ph(eos, c, K, V, FlashConfig(); method = method, kwarg...)
 end
 
+@inline function flash_2ph(eos::GenericCubicEOS{E, R, N}, c,
+        K::SVector{N, F}, V, config::FlashConfig{false, false};
+        method::SSIFlash = SSIFlash(),
+        verbose::Bool = false,
+        maxiter::Int = 25000,
+        tolerance::Float64 = 1e-8,
+        extra_out::Bool = false,
+        update_forces::Bool = true,
+        check::Bool = true,
+        z_min = MINIMUM_COMPOSITION,
+        kwarg...
+    ) where {E, R, N, F}
+    z = if isnothing(z_min)
+        c.z
+    else
+        SVector{N, F}(ntuple(i -> max(c.z[i], z_min), Val(N)))
+    end
+    cond = (p = c.p, T = c.T, z = z)
+    forces = force_coefficients_stack(eos, cond, F)
+    V = convert(F, V)
+    single_phase_init = isnan(V) || V == one(F) || V == zero(F)
+    if single_phase_init
+        stable, stability_report, K = stability_2ph_stack(
+            K, eos, cond, forces; maxiter = maxiter, kwarg...)
+    else
+        stable = false
+        stability_report = StabilityReport(false, false, false, false)
+    end
+    converged = false
+    if stable
+        iteration = 0
+    else
+        iteration = 1
+        if isnan(V)
+            V = solve_rachford_rice(K, z, V)
+        end
+        while true
+            V, K, residual = ssi_stack(K, cond.p, cond.T, z, V, eos, forces)
+            converged = residual <= tolerance
+            (converged || iteration == maxiter) && break
+            iteration += 1
+        end
+    end
+    out = (V, K, (its = iteration, converged = converged, stability = stability_report))
+    return extra_out ? out : out[1]
+end
+
 function flash_2ph(eos, c::T, K, V, config::FlashConfig; method = SSIFlash(), kwarg...) where T
     nc = number_of_components(eos)
     if print_output(config)
@@ -367,6 +414,32 @@ end
     liquid_phase = phase_value(config, Val(:liquid))
     vapor_phase = phase_value(config, Val(:vapor))
     return ssi_with_phases!(K, p, T, x, y, z, V, eos, forces, liquid_phase, vapor_phase)
+end
+
+@inline function static_fugacities(eos::GenericCubicEOS{E, R, N}, cond, forces,
+        ::Type{F}) where {E, R, N, F}
+    Z, scalars = prep(eos, cond, forces)
+    return SVector{N, F}(ntuple(Val(N)) do component
+        component_fugacity(eos, cond, component, Z, forces, scalars)
+    end)
+end
+
+@inline function ssi_stack(K::SVector{N, F}, p::F, T::F, z, V::F,
+        eos, forces) where {N, F<:Real}
+    x = SVector{N, F}(ntuple(i -> liquid_mole_fraction(z[i], K[i], V), Val(N)))
+    y = SVector{N, F}(ntuple(i -> vapor_mole_fraction(x[i], K[i]), Val(N)))
+    liquid = (p = p, T = T, z = x, phase = Val(:liquid))
+    vapor = (p = p, T = T, z = y, phase = Val(:vapor))
+    f_l = static_fugacities(eos, liquid, forces, F)
+    f_v = static_fugacities(eos, vapor, forces, F)
+    ratios = SVector{N, F}(ntuple(i -> f_l[i]/f_v[i], Val(N)))
+    residual = zero(F)
+    @inbounds for i in 1:N
+        residual = max(residual, abs(one(F) - ratios[i]))
+    end
+    K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
+    V_next = solve_rachford_rice(K_next, z, V)
+    return V_next, K_next, residual
 end
 
 function ssi_with_phases!(K, p::F, T::F, x, y, z, V::F, eos, forces, liquid_phase, vapor_phase) where {F<:Real}

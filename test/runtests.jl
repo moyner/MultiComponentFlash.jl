@@ -154,7 +154,7 @@ using StaticArrays, KernelAbstractions, JLArrays
         if i <= length(out)
             @inbounds cond = (p = pressure[i], T = temperature[i], z = z)
             config = FlashConfig{false, false}()
-            K = initial_guess_K_static(eos, cond)
+            K = initial_guess_K_static(eos, cond, config)
             V = flash_2ph(eos, cond, K, NaN, config;
                 method = SSIFlash(), check = false, verbose = false, z_min = nothing)
             @inbounds out[i] = V

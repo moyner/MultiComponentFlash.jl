@@ -66,10 +66,13 @@ end
 struct PhaseStabilityStatus
     stable::Bool
     trivial::Bool
-    function PhaseStabilityStatus(stable = false; trivial = stable)
+    function PhaseStabilityStatus(stable::Bool, trivial::Bool)
         return new(stable, trivial && stable)
     end
 end
+
+PhaseStabilityStatus(stable::Bool = false; trivial::Bool = stable) =
+    PhaseStabilityStatus(stable, trivial)
 
 function Base.show(io::IOContext, sr::PhaseStabilityStatus)
     compact = get(io, :compact, false)
@@ -86,16 +89,20 @@ struct StabilityReport
     stable::Bool
     liquid::PhaseStabilityStatus
     vapor::PhaseStabilityStatus
+    function StabilityReport(stable_liquid::Bool, trivial_liquid::Bool,
+            stable_vapor::Bool, trivial_vapor::Bool)
+        new(stable_liquid && stable_vapor,
+            PhaseStabilityStatus(stable_liquid, trivial_liquid),
+            PhaseStabilityStatus(stable_vapor, trivial_vapor)
+        )
+    end
     function StabilityReport(;
             stable_liquid::Bool = false,
             trivial_liquid::Bool = stable_liquid,
             stable_vapor::Bool = false,
             trivial_vapor::Bool = stable_vapor,
         )
-        new(stable_liquid && stable_vapor,
-            PhaseStabilityStatus(stable_liquid, trivial = trivial_liquid),
-            PhaseStabilityStatus(stable_vapor, trivial = trivial_vapor)
-        )
+        StabilityReport(stable_liquid, trivial_liquid, stable_vapor, trivial_vapor)
     end
 end
 
