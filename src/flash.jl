@@ -221,8 +221,13 @@ Returns `(V, K, iterations, converged)`.
     config = FlashConfig{false, false}()
     storage = flash_storage(eos, cond, SSIFlash(), config, T)
     V, K, report = flash_2ph_impl!(storage, K, eos, cond, V, config;
-        method = SSIFlash(), maxiter = maxiter, tolerance = tolerance,
-        verbose = false, check = false, z_min = nothing)
+        method = SSIFlash(),
+        maxiter = maxiter,
+        tolerance = tolerance,
+        verbose = false,
+        check = false,
+        z_min = nothing
+    )
     return (V, K, report.its, report.converged)
 end
 
