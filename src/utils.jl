@@ -107,16 +107,23 @@ end
 function michelsen_critical_point_measure_storage(eos; T = Float64, static_size = true)
     n = number_of_components(eos)
     T∂ = ForwardDiff.Dual{nothing, T, n}
-    mole_numbers_ad = Vector{T∂}(undef, n)
-    for i in 1:n
-        partials = ForwardDiff.Partials{n, T}(Tuple(map(j -> Float64(i == j), 1:n)))
-        mole_numbers_ad[i] = T∂(1.0/n, partials)
+    if static_size
+        mole_numbers_ad = ntuple(n) do i
+            partials = ForwardDiff.Partials{n, T}(ntuple(j -> T(i == j), n))
+            T∂(one(T) / n, partials)
+        end
+    else
+        mole_numbers_ad = Vector{T∂}(undef, n)
+        for i in 1:n
+            partials = ForwardDiff.Partials{n, T}(Tuple(map(j -> T(i == j), 1:n)))
+            mole_numbers_ad[i] = T∂(one(T) / n, partials)
+        end
     end
     z = mole_numbers_ad./sum(mole_numbers_ad)
     if static_size
         z = MVector{n, T∂}(z)
     end
-    B = zeros(T, n, n)
+    B = static_size ? zero(MMatrix{n, n, T}) : zeros(T, n, n)
     c = (p = 101325.0, T = 303.15, z = z)
     forces = force_coefficients(eos, c; static_size = static_size)
     return (B = B, forces = forces, z = z)
@@ -148,7 +155,8 @@ function michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
         end
     end
     v = Inf
-    for x in eigvals!(B)
+    eigenvalues = B isa MMatrix ? eigvals(Symmetric(SMatrix(B))) : eigvals!(B)
+    for x in eigenvalues
         v = min(v, real(x))
     end
     return v

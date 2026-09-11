@@ -61,3 +61,14 @@ end
 In-place version of `initial_guess_K`.
 """
 initial_guess_K!(K, eos, cond) = wilson_estimate!(K, eos, cond.p, cond.T)
+
+"""Return inline Wilson K-values for an EOS with a compile-time component count."""
+function initial_guess_K_static(eos::GenericCubicEOS{E, R, N}, cond) where {E, R, N}
+    T = Base.promote_eltype(cond.p, cond.T, cond.z[1])
+    return initial_guess_K_static(eos, cond, T)
+end
+
+@inline function initial_guess_K_static(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
+    properties = eos.mixture.properties
+    return SVector{N, T}(ntuple(i -> wilson_estimate(properties[i], cond.p, cond.T), Val(N)))
+end

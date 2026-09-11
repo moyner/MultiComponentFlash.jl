@@ -11,9 +11,9 @@ definitions for the terms (they are, after all, all cubic in form). References:
  2. [Simulation of Gas Condensate Reservoir Performance  by K.H. Coats](https://doi.org/10.2118/10512-PA)
 
 """
-struct GenericCubicEOS{T, R, N, V} <: AbstractCubicEOS
+struct GenericCubicEOS{T, R, N, V, M<:MultiComponentMixture{R, N}} <: AbstractCubicEOS
     type::T
-    mixture::MultiComponentMixture{R, N}
+    mixture::M
     m_1::R
     m_2::R
     ω_a::R
@@ -180,6 +180,30 @@ function GenericCubicEOS(setup::NamedTuple, mixture; volume_shift = nothing)
         length(volume_shift) == number_of_components(mixture) || throw(ArgumentError("Volume shift must have one value per component."))
     end
     return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b, volume_shift)
+end
+
+"""
+    static_eos(eos)
+
+Convert a generic cubic EOS to an isbits representation suitable for passing to
+accelerator kernels. The numerical model is unchanged; only descriptive metadata
+and array storage are converted.
+"""
+function static_eos(eos::GenericCubicEOS{T, R, N}) where {T, R, N}
+    mixture = static_mixture(eos.mixture)
+    volume_shift = eos.volume_shift
+    if !isnothing(volume_shift)
+        volume_shift = SVector{N, eltype(volume_shift)}(volume_shift)
+    end
+    return GenericCubicEOS(
+        eos.type,
+        mixture,
+        eos.m_1,
+        eos.m_2,
+        eos.ω_a,
+        eos.ω_b,
+        volume_shift
+    )
 end
 
 struct KValuesEOS{T, R, N, V} <: AbstractEOS

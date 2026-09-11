@@ -11,8 +11,11 @@ number_of_components(e::AbstractEOS) = number_of_components(e.mixture)
 forces_per_phase(eos::GenericCubicEOS) = false
 
 function get_phase(cond)
-    return get(cond, :phase, :unknown)::Symbol
+    return phase_symbol(get(cond, :phase, :unknown))
 end
+
+@inline phase_symbol(phase::Symbol) = phase
+@inline phase_symbol(::Val{phase}) where phase = phase
 
 function set_phase(cond, phase::Symbol, throw::Bool = false)
     if throw && haskey(cond, :phase) && cond.phase != :unknown
@@ -93,34 +96,50 @@ minimum_allowable_root(eos, forces, scalars) = 1e-16
     return roots
 end
 
-function pick_root(eos, roots, cond, forces, scalars)
-    phase = get_phase(cond)
-    r_ϵ = minimum_allowable_root(eos, forces, scalars)
-    max_r = maximum(roots)
-    min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
-    if min_r == max_r
-        r = min_r
-    elseif phase == :liquid
-        r = min_r
-    elseif phase == :vapor
-        r = max_r
-    else
-        function Gibbs(Z)
-            E = 0.0
-            z = cond.z
-            @inbounds for i in eachindex(z)
-                ϕ = component_fugacity_coefficient(eos, cond, i, Z, forces, scalars)
-                E += z[i]*ϕ
-            end
-            return E
-        end
-        if Gibbs(min_r) < Gibbs(max_r)
-            r = min_r
-        else
-            r = max_r
+@inline function root_bounds(roots, minimum_root)
+    max_root = -Inf
+    min_root = Inf
+    for root in roots
+        max_root = max(max_root, root)
+        if root > minimum_root
+            min_root = min(min_root, root)
         end
     end
-    return r
+    return min_root, max_root
+end
+
+@inline function pick_root(eos, roots, cond, forces, scalars)
+    phase = get(cond, :phase, :unknown)
+    return pick_root(eos, roots, cond, forces, scalars, phase)
+end
+
+@inline function pick_root(eos, roots, cond, forces, scalars, ::Val{:liquid})
+    min_r, _ = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
+    return min_r
+end
+
+@inline function pick_root(eos, roots, cond, forces, scalars, ::Val{:vapor})
+    _, max_r = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
+    return max_r
+end
+
+function pick_root(eos, roots, cond, forces, scalars, phase::Symbol)
+    min_r, max_r = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
+    if min_r == max_r || phase == :liquid
+        return min_r
+    elseif phase == :vapor
+        return max_r
+    end
+    function Gibbs(Z)
+        E = 0.0
+        z = cond.z
+        @inbounds for i in eachindex(z)
+            ϕ = component_fugacity_coefficient(eos, cond, i, Z, forces, scalars)
+            E += z[i]*ϕ
+        end
+        return E
+    end
+    return Gibbs(min_r) < Gibbs(max_r) ? min_r : max_r
 end
 
 """
@@ -138,9 +157,9 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     n = number_of_components(eos)
     eT = Base.promote_eltype(cond.p, cond.T, cond.z[1])
     if static_size
-        A_ij = @MMatrix zeros(eT, n, n)
-        A_i = @MVector zeros(eT, n)
-        B_i = @MVector zeros(eT, n)
+        A_ij = zero(MMatrix{n, n, eT})
+        A_i = zero(MVector{n, eT})
+        B_i = zero(MVector{n, eT})
     else
         A_ij = zeros(eT, n, n)
         A_i = zeros(eT, n)
@@ -149,6 +168,34 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     coeff = (A_ij = A_ij, A_i = A_i, B_i = B_i)
     update_force_coefficients!(coeff, eos, cond)
     return coeff
+end
+
+"""Construct inline force coefficients with the component count from the EOS type."""
+function force_coefficients_static(eos::GenericCubicEOS{E, R, N}, cond) where {E, R, N}
+    T = Base.promote_eltype(cond.p, cond.T, cond.z[1])
+    return force_coefficients_static(eos, cond, T)
+end
+
+function force_coefficients_static(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
+    coeff = (
+        A_ij = zero(MMatrix{N, N, T}),
+        A_i = zero(MVector{N, T}),
+        B_i = zero(MVector{N, T})
+    )
+    return update_force_coefficients!(coeff, eos, cond)
+end
+
+"""Immutable force coefficients for register-oriented accelerator kernels."""
+@inline function force_coefficients_stack(eos::GenericCubicEOS{E, R, N}, cond, ::Type{T}) where {E, R, N, T}
+    A_i_static = SVector{N, T}(ntuple(i -> A_i(eos, cond, i), Val(N)))
+    B_i_static = SVector{N, T}(ntuple(i -> B_i(eos, cond, i), Val(N)))
+    A_ij_static = SMatrix{N, N, T}(ntuple(Val(N*N)) do index
+        i = mod1(index, N)
+        j = (index - 1) ÷ N + 1
+        sqrt(A_i_static[i]*A_i_static[j]) *
+            (one(T) - binary_interaction(eos, i, j, cond))
+    end)
+    return (A_ij = A_ij_static, A_i = A_i_static, B_i = B_i_static)
 end
 
 function get_force_coefficients(forces, eos, cond)
@@ -165,6 +212,8 @@ function get_force_coefficients(forces, eos, cond)
         return forces
     end
 end
+
+@inline get_force_coefficients(forces, eos::GenericCubicEOS, cond) = forces
 
 """
     force_coefficients!(coeff, eos, cond)

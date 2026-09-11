@@ -19,14 +19,14 @@ module MultiComponentFlash
     export KValuesEOS
     export number_of_components
     # Flash interfaces
-    export flash_2ph, flash_2ph!, flash_storage
+    export flash_2ph, flash_2ph!, flash_2ph_static, flash_storage, flash_storage_static
     export stability_2ph, stability_2ph!
     # Algorithms for flash
     export SSIFlash, NewtonFlash, SSINewtonFlash
     # Mixtures and their molecular makeup
     export MolecularProperty, MultiComponentMixture
     # K-values
-    export wilson_estimate, wilson_estimate!, initial_guess_K, initial_guess_K!
+    export wilson_estimate, wilson_estimate!, initial_guess_K, initial_guess_K!, initial_guess_K_static
     # Vapor-liquid equilibrium
     export solve_rachford_rice
 
@@ -35,6 +35,7 @@ module MultiComponentFlash
 
     export force_scalars, force_coefficients, force_coefficients!
     export critical_pressure, critical_temperature, critical_volume, acentric_factor, molar_weight
+    export static_eos
     export cubic_benchmark
     export single_phase_label
 

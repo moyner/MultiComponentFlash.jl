@@ -159,6 +159,71 @@ function flash_storage(eos, cond = (p = 10e5, T = 273.15, z = zeros(number_of_co
     return NamedTuple(pairs(d))
 end
 
+"""
+    flash_storage_static(eos, cond, [method])
+
+Construct an inline, statically sized SSI workspace without using the `Dict`-based
+host storage builder. This constructor is suitable for use inside accelerator
+kernels when `eos` and `cond` are isbits values.
+"""
+function flash_storage_static(eos::GenericCubicEOS{E, R, N}, cond, method::SSIFlash = SSIFlash()) where {E, R, N}
+    T = Base.promote_eltype(cond.p, cond.T, cond.z[1])
+    forces = force_coefficients_static(eos, cond)
+    return (
+        forces = forces,
+        x = zero(MVector{N, T}),
+        y = zero(MVector{N, T}),
+        buffer1 = zero(MVector{N, T}),
+        buffer2 = zero(MVector{N, T})
+    )
+end
+
+
+"""
+    flash_2ph_static(eos, cond, K, V[, maxiter, tolerance])
+
+Accelerator-compatible SSI equilibrium solve with entirely local static storage.
+`K` must be a static vector and `V` must be a finite initial vapor
+fraction. Stability testing and host-side diagnostics are intentionally excluded.
+Returns `(V, K, iterations, converged)`.
+"""
+@inline flash_2ph_static(eos, cond, K, V) =
+    flash_2ph_static(eos, cond, K, V, 25000, 1e-8)
+
+@inline function flash_2ph_static(
+        eos::GenericCubicEOS{E, R, N}, cond, K::MVector{N, T}, V,
+        maxiter::Int, tolerance
+    ) where {E, R, N, T}
+    forces = force_coefficients_static(eos, cond, T)
+    x = zero(MVector{N, T})
+    y = zero(MVector{N, T})
+    converged = false
+    iteration = 0
+    while iteration < maxiter
+        iteration += 1
+        V, residual = ssi_static!(K, cond.p, cond.T, x, y, cond.z, V, eos, forces)
+        converged = residual <= tolerance
+        converged && break
+    end
+    return (V, K, iteration, converged)
+end
+
+@inline function flash_2ph_static(
+        eos::GenericCubicEOS{E, R, N}, cond, K::SVector{N, T}, V,
+        maxiter::Int, tolerance
+    ) where {E, R, N, T}
+    forces = force_coefficients_stack(eos, cond, T)
+    converged = false
+    iteration = 0
+    while iteration < maxiter
+        iteration += 1
+        V, K, residual = ssi_static(K, cond.p, cond.T, cond.z, V, eos, forces)
+        converged = residual <= tolerance
+        converged && break
+    end
+    return (V, K, iteration, converged)
+end
+
 function flash_storage_internal!(out, eos, cond, method;
         inc_jac = isa(method, AbstractNewtonFlash),
         inc_bypass = false,
@@ -177,7 +242,12 @@ function flash_storage_internal!(out, eos, cond, method;
         out[:forces] = alloc_forces(cond)
     end
     if static_size
-        alloc_vec = () -> @MVector zeros(n)
+        # Do not write `@MVector zeros(n)` here.  That form first creates a
+        # regular Vector and then copies it into the MVector.  Apart from the
+        # unnecessary allocation, this is particularly inconvenient for GPU
+        # callers since the temporary is a host array.  Construct the
+        # tuple-backed static array directly instead.
+        alloc_vec = () -> zero(MVector{n, eltype(cond.z)})
     else
         alloc_vec = () -> zeros(n)
     end
@@ -202,10 +272,10 @@ function flash_storage_internal_newton!(out, eos, cond, method; static_size = fa
     V_ad = primary_ad(np)
     T = typeof(V_ad)
     if static_size
-        x_ad = @MVector zeros(T, n)
-        y_ad = @MVector zeros(T, n)
-        r = @MVector zeros(np)
-        J = @MMatrix zeros(np, np)
+        x_ad = zero(MVector{n, T})
+        y_ad = zero(MVector{n, T})
+        r = zero(MVector{np, Float64})
+        J = zero(MMatrix{np, np, Float64})
     else
         x_ad = zeros(T, n)
         y_ad = zeros(T, n)
@@ -235,8 +305,8 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     T_ad = secondary_ad(2)
     T_cond = typeof(p_ad)
     if static_size
-        z_ad = @MVector zeros(T_cond, n)
-        J_inv = @MMatrix zeros(np, external_partials)
+        z_ad = zero(MVector{n, T_cond})
+        J_inv = zero(MMatrix{np, external_partials, Float64})
     else
         z_ad = zeros(T_cond, n)
         J_inv = zeros(np, external_partials)
@@ -248,7 +318,7 @@ function flash_storage_internal_inverse!(out, eos, cond, method; static_size = f
     cond_ad = (p = p_ad, T = T_ad, z = z_ad, phase = :liquid)
     if !isnothing(npartials)
         if static_size
-            buf = @MVector zeros(npartials)
+            buf = zero(MVector{npartials, Float64})
         else
             buf = zeros(npartials)
         end
@@ -279,12 +349,43 @@ function flash_update!(K, storage, type::SSIFlash, eos, cond, forces, V, iterati
 end
 
 function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
+    return ssi_with_phases!(K, p, T, x, y, z, V, eos, forces, :liquid, :vapor)
+end
+
+@inline function ssi_static!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
+    return ssi_with_phases!(K, p, T, x, y, z, V, eos, forces, Val(:liquid), Val(:vapor))
+end
+
+@inline function ssi_static(K::SVector{N, F}, p::F, T::F, z, V::F, eos, forces) where {N, F<:Real}
+    K_input = K
+    V_input = V
+    x = SVector{N, F}(ntuple(i -> liquid_mole_fraction(z[i], K_input[i], V_input), Val(N)))
+    y = SVector{N, F}(ntuple(i -> vapor_mole_fraction(x[i], K_input[i]), Val(N)))
+    liquid = (p = p, T = T, z = x, phase = Val(:liquid))
+    vapor = (p = p, T = T, z = y, phase = Val(:vapor))
+    Z_l, s_l = prep(eos, liquid, forces)
+    Z_v, s_v = prep(eos, vapor, forces)
+    ratios = SVector{N, F}(ntuple(Val(N)) do component
+        f_l = component_fugacity(eos, liquid, component, Z_l, forces, s_l)
+        f_v = component_fugacity(eos, vapor, component, Z_v, forces, s_v)
+        f_l/f_v
+    end)
+    residual = zero(F)
+    @inbounds for i in eachindex(ratios)
+        residual = max(residual, abs(one(F) - ratios[i]))
+    end
+    K_next = SVector{N, F}(ntuple(i -> K_input[i]*ratios[i], Val(N)))
+    V_next = solve_rachford_rice(K_next, z, V_input)
+    return V_next, K_next, residual
+end
+
+function ssi_with_phases!(K, p::F, T::F, x, y, z, V::F, eos, forces, liquid_phase, vapor_phase) where {F<:Real}
     # Initialize conditions for vapor and liquid phases based on K-values
     x = liquid_mole_fraction!(x, z, K, V)
     y = vapor_mole_fraction!(y, x, K)
 
-    liquid = (p = p, T = T, z = x, phase = :liquid)
-    vapor = (p = p, T = T, z = y, phase = :vapor)
+    liquid = (p = p, T = T, z = x, phase = liquid_phase)
+    vapor = (p = p, T = T, z = y, phase = vapor_phase)
 
     Z_l, s_l = prep(eos, liquid, forces)
     Z_v, s_v = prep(eos, vapor, forces)

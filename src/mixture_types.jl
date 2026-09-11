@@ -61,11 +61,11 @@ end
 
 Create a multicomponent mixture with an optional binary interaction coefficient matrix `A_ij`.
 """
-struct MultiComponentMixture{R, N}
-    name::String
-    component_names::Vector{String}
+struct MultiComponentMixture{R, N, Name, Names, BIC}
+    name::Name
+    component_names::Names
     properties::NTuple{N, MolecularProperty{R}}
-    binary_interaction::Union{Matrix{R}, Nothing}
+    binary_interaction::BIC
     function MultiComponentMixture(properties; A_ij = nothing, names = ["C$d" for d in 1:length(properties)], name = "UnnamedMixture")
         n = length(properties)
         n > 0 || throw(ArgumentError("At least one property must be present"))
@@ -77,8 +77,23 @@ struct MultiComponentMixture{R, N}
             A_ij = Symmetric(A_ij)
         end
         length(names) == n || throw(ArgumentError("Vector of component names must have same length as mixture."))
-        new{realtype, n}(name, names, properties, A_ij)
+        new{realtype, n, typeof(name), typeof(names), typeof(A_ij)}(name, names, properties, A_ij)
     end
+end
+
+"""
+    static_mixture(mixture)
+
+Return an isbits representation of a mixture for accelerator kernels. Human-readable
+metadata is omitted and binary-interaction coefficients are stored inline.
+"""
+function static_mixture(mixture::MultiComponentMixture{R, N}) where {R, N}
+    names = ntuple(_ -> nothing, Val(N))
+    bic = mixture.binary_interaction
+    if !isnothing(bic)
+        bic = SMatrix{N, N, R}(bic)
+    end
+    return MultiComponentMixture(mixture.properties; A_ij = bic, names = names, name = nothing)
 end
 
 """

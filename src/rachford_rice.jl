@@ -20,6 +20,79 @@ julia> solve_rachford_rice([0.5, 1.5], [0.3, 0.7])
 0.8000000000000002
 ```
 """
+@inline function solve_rachford_rice(K::StaticVector{2}, z::StaticVector{2}, V = NaN)
+    z1, z2 = z
+    k1, k2 = K
+    b1, b2 = inv(1 - k1), inv(1 - k2)
+    return (z1*b2 + z2*b1)/(z1 + z2)
+end
+
+@inline function solve_rachford_rice(K::StaticVector{3}, z::StaticVector{3}, V = NaN)
+    z1, z2, z3 = z
+    k1, k2, k3 = K
+    b1, b2, b3 = inv(1-k1), inv(1-k2), inv(1-k3)
+    a2 = z1 + z2 + z3
+    a1 = -b1*(z2 + z3) - b2*(z1 + z3) - b3*(z1 + z2)
+    a0 = b1*b2*z3 + b1*b3*z2 + b2*b3*z1
+    discriminant = a1*a1 - 4*a0*a2
+    if discriminant >= zero(discriminant)
+        inv_2a2 = inv(2*a2)
+        root_offset = sqrt(discriminant)*inv_2a2
+        root_center = -a1*inv_2a2
+        root1 = root_center - root_offset
+        root2 = root_center + root_offset
+        if zero(root1) < root1 < one(root1)
+            return root1
+        elseif zero(root2) < root2 < one(root2)
+            return root2
+        elseif isfinite(root1 + root2)
+            kmin = min(k1, k2, k3)
+            kmax = max(k1, k2, k3)
+            kmin > one(kmin) && return max(root1, root2)
+            kmax < one(kmax) && return min(root1, root2)
+        end
+    end
+    return solve_rachford_rice_static_iterative(K, z, V)
+end
+
+@inline function solve_rachford_rice(K::StaticVector, z::StaticVector, V = NaN)
+    return solve_rachford_rice_static_iterative(K, z, V)
+end
+
+"""GPU-compatible Rachford--Rice fallback for statically sized inputs."""
+@inline function solve_rachford_rice_static_iterative(K, z, V; tol = 1e-12, maxiter = 1000)
+    V_lo = inv(1 - maximum(K))
+    V_hi = inv(1 - minimum(K))
+    if V_hi < V_lo
+        V_lo, V_hi = V_hi, V_lo
+    end
+    if isnan(V)
+        V = (V_lo + V_hi)/2
+    end
+    for _ in 1:maxiter
+        residual = zero(V)
+        denominator = zero(V)
+        @inbounds for i in eachindex(K)
+            delta_K = K[i] - one(K[i])
+            term_denominator = one(V) + V*delta_K
+            residual += z[i]*delta_K/term_denominator
+            denominator += z[i]*delta_K^2/term_denominator^2
+        end
+        abs(residual) < tol && break
+        if residual > zero(residual)
+            V_lo = V
+        else
+            V_hi = V
+        end
+        V_next = V + residual/denominator
+        if !(V_lo < V_next < V_hi) || !isfinite(V_next)
+            V_next = (V_lo + V_hi)/2
+        end
+        V = V_next
+    end
+    return V
+end
+
 function solve_rachford_rice(K, z, V = NaN; tol=1e-12, maxiter=1000, ad = false, analytical = true, verbose = false)
     n = length(z)
     if analytical

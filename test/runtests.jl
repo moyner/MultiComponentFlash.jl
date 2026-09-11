@@ -49,6 +49,27 @@ end
     end
 end
 
+@testset "Static accelerator path" begin
+    eos = static_eos(get_test_eos())
+    c = (p = 1e6, T = 300.0, z = @SVector [0.5, 0.3, 0.2])
+    K = zero(MVector{3, Float64})
+    initial_guess_K!(K, eos, c)
+    V, K, iterations, converged = flash_2ph_static(eos, c, K, 0.5)
+
+    @test isbitstype(typeof(eos))
+    @test converged
+    @test iterations == 6
+    @test V ≈ 0.7632068334421974
+    @test K ≈ @SVector [4.553402802323027, 17.73895830809456, 0.0004031451448211194]
+
+    K_static = initial_guess_K_static(eos, c)
+    V_static, K_static, iterations_static, converged_static = flash_2ph_static(eos, c, K_static, 0.5)
+    @test converged_static
+    @test iterations_static == iterations
+    @test V_static ≈ V
+    @test K_static ≈ K
+end
+
 @testset "Partial derivatives" begin
     test_flash_partials()
 end
