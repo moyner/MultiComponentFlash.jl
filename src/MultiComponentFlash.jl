@@ -22,7 +22,7 @@ module MultiComponentFlash
     export flash_2ph, flash_2ph!, flash_2ph_immutable, flash_storage
     export stability_2ph, stability_2ph!
     # Algorithms for flash
-    export SSIFlash, NewtonFlash, SSINewtonFlash, FlashConfig, StaticConfig
+    export SSIFlash, NewtonFlash, SSINewtonFlash
     # Mixtures and their molecular makeup
     export MolecularProperty, MultiComponentMixture
     # K-values
@@ -35,7 +35,7 @@ module MultiComponentFlash
 
     export force_scalars, force_coefficients, force_coefficients!
     export critical_pressure, critical_temperature, critical_volume, acentric_factor, molar_weight
-    export static_eos
+    export make_eos_immutable
     export cubic_benchmark
     export single_phase_label
 

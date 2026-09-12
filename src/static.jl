@@ -23,7 +23,7 @@ scalar vapor fraction. When `storage` is omitted, a static storage marker is
 created automatically.
 
 The immutable path currently supports `SSIFlash` and generic cubic EOS values
-converted with [`static_eos`](@ref).
+converted with [`make_eos_immutable`](@ref).
 """
 @inline function flash_2ph_immutable(eos, c; method = SSIFlash(), kwarg...)
     return flash_2ph_immutable(eos, c,
@@ -51,11 +51,11 @@ function static_mixture(mixture::MultiComponentMixture{R, N}) where {R, N}
 end
 
 """
-    static_eos(eos)
+    make_eos_immutable(eos)
 
 Convert a generic cubic EOS to an isbits representation for accelerator kernels.
 """
-function static_eos(eos::GenericCubicEOS{T, R, N}) where {T, R, N}
+function make_eos_immutable(eos::GenericCubicEOS{T, R, N}) where {T, R, N}
     mixture = static_mixture(eos.mixture)
     volume_shift = eos.volume_shift
     if !isnothing(volume_shift)

@@ -42,13 +42,13 @@ S = flash_storage(eos, conditions, method = m)
 
 [`flash_2ph_immutable`](@ref) is the public interface to the fully static SSI path.
 It is useful when the component count is small and fixed, particularly inside CPU
-or GPU kernels. Convert the EOS once with [`static_eos`](@ref), and provide the
+or GPU kernels. Convert the EOS once with [`make_eos_immutable`](@ref), and provide the
 overall composition as an `SVector`:
 
 ```julia
 using BenchmarkTools, MultiComponentFlash, StaticArrays
 
-eos_static = static_eos(eos)
+eos_static = make_eos_immutable(eos)
 conditions_static = (p = p, T = T, z = SVector{length(z)}(z))
 
 V, K = flash_2ph_immutable(eos_static, conditions_static)
