@@ -38,27 +38,49 @@ S = flash_storage(eos, conditions, method = m)
 16
 ```
 
-## GPU and static-array use
+## Immutable performance and GPU use
 
-Use the fully static SSI path for GPU kernels. Construct the isbits EOS and storage
-once outside the kernel, then pass both to it:
+[`flash_2ph_immutable`](@ref) is the public interface to the fully static SSI path.
+It is useful when the component count is small and fixed, particularly inside CPU
+or GPU kernels. Convert the EOS once with [`static_eos`](@ref), and provide the
+overall composition as an `SVector`:
 
 ```julia
-using MultiComponentFlash, StaticArrays
+using BenchmarkTools, MultiComponentFlash, StaticArrays
 
-eos_gpu = static_eos(eos)
-conditions_gpu = (p = p, T = T, z = SVector{length(z)}(z))
-storage = flash_storage(eos_gpu, conditions_gpu; method = SSIFlash(), static = true)
+eos_static = static_eos(eos)
+conditions_static = (p = p, T = T, z = SVector{length(z)}(z))
 
-# Inside each kernel work item:
-K = initial_guess_K(eos_gpu, conditions_gpu, storage)
-V = flash_2ph!(storage, K, eos_gpu, conditions_gpu, NaN)
+V, K = flash_2ph_immutable(eos_static, conditions_static)
+@btime flash_2ph_immutable($eos_static, $conditions_static)
 ```
 
-`static=false` returns the ordinary reusable mutable storage. `static=true` returns
-a `StaticConfig` and keeps all per-flash arrays immutable and local to the work item.
-The static path currently supports `GenericCubicEOS` with `SSIFlash`; compilation is
-specialized on the component count.
+`V` is the scalar vapor fraction and `K` is an `SVector`. All working vectors are
+immutable values local to the call; the input `conditions_static.z` must also be an
+`SVector`. The implementation currently supports `GenericCubicEOS` with
+`SSIFlash`, and compilation is specialized on the number of components.
+
+The two-argument form creates the static storage marker automatically. It can also
+be constructed once and passed as the final positional argument:
+
+```julia
+storage = flash_storage(eos_static, conditions_static; static = true)
+V, K = flash_2ph_immutable(eos_static, conditions_static, storage)
+@btime flash_2ph_immutable($eos_static, $conditions_static, $storage)
+```
+
+Static storage is a zero-size immutable marker rather than a mutable work buffer,
+so constructing it inline normally compiles away and does not allocate. Passing it
+explicitly can still be convenient when setting up a kernel. For example, each
+kernel work item can construct its conditions and call:
+
+```julia
+conditions_i = (p = pressure[i], T = temperature[i], z = z_static)
+V, K = flash_2ph_immutable(eos_static, conditions_i, storage)
+```
+
+Do not share ordinary mutable storage from `flash_storage(...; static = false)`
+between kernel work items.
 
 ## Generate and plot a phase diagram
 
