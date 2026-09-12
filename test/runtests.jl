@@ -216,6 +216,21 @@ end
 end
 
 using ForwardDiff
+@testset "Static flashed mixture promotion" begin
+    x = @SVector [0.8, 0.2]
+    y = @SVector [0.1, 0.9]
+    dZ = ForwardDiff.derivative(0.4) do V
+        flashed = FlashedMixture2Phase(
+            MultiComponentFlash.two_phase_lv, SVector(0.125, 4.5),
+            V, x, y, V + 0.5, V + 0.7)
+        @test eltype(flashed.liquid.mole_fractions) === typeof(V)
+        @test eltype(flashed.vapor.mole_fractions) === typeof(V)
+        @test isbitstype(typeof(flashed))
+        return flashed.liquid.Z
+    end
+    @test dZ == 1.0
+end
+
 @testset "Rachford-Rice derivatives" begin
     N = 25
     for z_light in range(0.0, 1.0, length = N)

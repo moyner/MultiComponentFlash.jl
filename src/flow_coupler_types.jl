@@ -8,6 +8,7 @@ struct FlashedPhase{T, A<:AbstractVector{T}}
     Z::T
     function FlashedPhase(mole_fractions::AbstractVector, Z::Tz) where Tz
         T = Base.promote_type(Tz, eltype(mole_fractions))
+        mole_fractions = map(x -> convert(T, x), mole_fractions)
         Z = convert(T, Z)
         new{T, typeof(mole_fractions)}(mole_fractions, Z)
     end
@@ -83,7 +84,7 @@ function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V, b = NaN, cond = missi
     liquid = FlashedPhase(x, Z_L)
     vapor = FlashedPhase(y, Z_V)
     return FlashedMixture2Phase(state, K, V, liquid, vapor,
-        vec_type = typeof(x), critical_distance = b, cond = cond,
+        vec_type = typeof(liquid.mole_fractions), critical_distance = b, cond = cond,
         stability_report = stability)
 end
 
