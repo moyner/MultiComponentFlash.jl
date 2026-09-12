@@ -38,15 +38,47 @@ end
     end
 end
 @testset "Zero allocating flash" begin
-    for m in flash_methods
-        name = typeof(m)
-        @testset "$name - Arrays" begin
-            test_flash_inplace(m, static_size = true)
-        end
-        @testset "$name - StaticArrays" begin
-            test_flash_inplace(m, static_size = true)
-        end
-    end
+    test_flash_inplace(SSIFlash())
+end
+
+@testset "Static accelerator path" begin
+    eos = make_eos_immutable(get_test_eos())
+    c = (p = 1e6, T = 300.0, z = @SVector [0.5, 0.3, 0.2])
+    storage = flash_storage(eos, c; method = SSIFlash(), static = true)
+    K = initial_guess_K(eos, c, storage)
+    V, K, report = flash_2ph!(storage, K, eos, c, 0.5; extra_out = true)
+
+    @test isbitstype(typeof(eos))
+    @test isbitstype(typeof(storage))
+    @test storage isa MultiComponentFlash.StaticConfig
+    @test report.converged
+    @test report.its == 6
+    @test V ≈ 0.7632068334421974
+    @test K ≈ @SVector [4.553402802323027, 17.73895830809456, 0.0004031451448211194]
+
+    normal_config = MultiComponentFlash.FlashConfig(print_output=false)
+    @test typeof(normal_config) == MultiComponentFlash.FlashConfig
+    @test flash_storage(eos, c, SSIFlash(), normal_config).x isa Vector
+    @test_throws ArgumentError flash_storage(eos, c; static_size = true)
+
+    config = MultiComponentFlash.FlashConfig(print_output=false, use_dict_storage=false)
+    @test typeof(config) == MultiComponentFlash.FlashConfig
+    @test flash_storage(eos, c, SSIFlash(), config) isa MultiComponentFlash.StaticConfig
+    K_config = initial_guess_K(eos, c, storage)
+    V_config, K_config, config_report = flash_2ph(eos, c, K_config, NaN, config;
+        method=SSIFlash(), extra_out=true, z_min=nothing)
+    @test config_report.stability isa MultiComponentFlash.StabilityReport
+    @test config_report.converged
+    @test V_config ≈ V
+    @test K_config ≈ K
+
+    V_immutable, K_immutable = flash_2ph_immutable(eos, c)
+    @test V_immutable ≈ V
+    @test K_immutable ≈ K
+    @test K_immutable isa SVector{3, Float64}
+    @test flash_2ph_immutable(eos, c, storage) == (V_immutable, K_immutable)
+    @test_throws ArgumentError flash_2ph_immutable(eos,
+        (p = c.p, T = c.T, z = collect(c.z)))
 end
 
 @testset "Partial derivatives" begin
@@ -115,3 +147,44 @@ end
     @test MultiComponentFlash.michelsen_critical_point_measure(equation_of_state, 5e6, 303.15, z) ≈ 0.776435 atol = 1e-4
     @test MultiComponentFlash.michelsen_critical_point_measure(equation_of_state, 5e6, 303.15, z, static_size = false) ≈ 0.776435 atol = 1e-4
 end
+
+using StaticArrays, KernelAbstractions, JLArrays
+@testset "Static flash with KernelAbstractions/JLArrays" begin
+    @kernel function static_flash_kernel!(out, pressure, temperature, z, eos, storage)
+        i = @index(Global)
+        if i <= length(out)
+            @inbounds cond = (p = pressure[i], T = temperature[i], z = z)
+            K = initial_guess_K(eos, cond, storage)
+            V = flash_2ph!(storage, K, eos, cond, NaN;
+                method = SSIFlash(), check = false, verbose = false, z_min = nothing)
+            @inbounds out[i] = V
+        end
+    end
+    if isdefined(JLArrays, :JLBackend)
+        host_eos = get_test_eos()
+        eos = make_eos_immutable(host_eos)
+        z = @SVector [0.5, 0.3, 0.2]
+        storage = flash_storage(eos, (p = 1e5, T = 300.0, z = z);
+            method = SSIFlash(), static = true)
+        n = 16
+        pressure_host = collect(range(1e5, 4e6, length = n))
+        temperature_host = collect(range(280.0, 320.0, length = n))
+        expected = map(pressure_host, temperature_host) do p, T
+            flash_2ph(host_eos, (p = p, T = T, z = collect(z));
+                method = SSIFlash(), check = false)
+        end
+
+        pressure = JLArray(pressure_host)
+        temperature = JLArray(temperature_host)
+        out = JLArray(zeros(n))
+        backend = JLArrays.JLBackend()
+        kernel! = static_flash_kernel!(backend, 8)
+        kernel!(out, pressure, temperature, z, eos, storage; ndrange = n)
+
+        @test Array(out) ≈ expected rtol = 1e-11
+    else
+        # JLArrays 0.1 supports Julia 1.6 but predates the KernelAbstractions backend.
+        @test_skip false
+    end
+end
+

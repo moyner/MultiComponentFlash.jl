@@ -11,9 +11,9 @@ definitions for the terms (they are, after all, all cubic in form). References:
  2. [Simulation of Gas Condensate Reservoir Performance  by K.H. Coats](https://doi.org/10.2118/10512-PA)
 
 """
-struct GenericCubicEOS{T, R, N, V} <: AbstractCubicEOS
+struct GenericCubicEOS{T, R, N, V, M<:MultiComponentMixture{R, N}} <: AbstractCubicEOS
     type::T
-    mixture::MultiComponentMixture{R, N}
+    mixture::M
     m_1::R
     m_2::R
     ω_a::R

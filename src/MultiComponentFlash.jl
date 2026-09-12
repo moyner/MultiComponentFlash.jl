@@ -19,7 +19,7 @@ module MultiComponentFlash
     export KValuesEOS
     export number_of_components
     # Flash interfaces
-    export flash_2ph, flash_2ph!, flash_storage
+    export flash_2ph, flash_2ph!, flash_2ph_immutable, flash_storage
     export stability_2ph, stability_2ph!
     # Algorithms for flash
     export SSIFlash, NewtonFlash, SSINewtonFlash
@@ -35,6 +35,7 @@ module MultiComponentFlash
 
     export force_scalars, force_coefficients, force_coefficients!
     export critical_pressure, critical_temperature, critical_volume, acentric_factor, molar_weight
+    export make_eos_immutable
     export cubic_benchmark
     export single_phase_label
 
@@ -53,6 +54,7 @@ module MultiComponentFlash
     include("flash.jl")
     include("derivatives.jl")
     include("stability.jl")
+    include("static.jl")
     include("tables.jl")
 
     include("flow_coupler.jl")

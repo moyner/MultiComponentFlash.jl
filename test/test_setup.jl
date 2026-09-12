@@ -13,15 +13,11 @@ test_conditions() = (p = 10e5, T = 300.0, z = [0.5, 0.3, 0.2])
 
 test_allocs(S, K, eos, c, m) = @allocated flash_2ph!(S, K, eos, c, NaN, method = m)
 
-function test_flash_inplace(m, do_test = true; static_size = false)
+function test_flash_inplace(m, do_test = true)
     eos = get_test_eos()
     c = test_conditions()
-    S = flash_storage(eos, c, method = m, static_size = static_size)
+    S = flash_storage(eos, c, method = m)
     K = initial_guess_K(eos, c)
-    if static_size
-        n = number_of_components(eos)
-        K = MVector{n}(K)
-    end
     # Just in case of compilation
     test_allocs(S, K, eos, c, m)
     # Then evaluation

@@ -4,6 +4,21 @@ abstract type AbstractFlash end
 abstract type AbstractNewtonFlash <: AbstractFlash end
 
 """
+    FlashConfig(; print_output=true, use_dict_storage=true)
+
+Runtime options for the ordinary flash implementation. Set `print_output=false`
+to suppress diagnostics. Setting `use_dict_storage=false` selects the fully
+static implementation; new code should prefer `flash_storage(...; static=true)`.
+"""
+Base.@kwdef struct FlashConfig
+    print_output::Bool = true
+    use_dict_storage::Bool = true
+end
+
+@inline print_output(config::FlashConfig) = config.print_output
+@inline use_dict_storage(config::FlashConfig) = config.use_dict_storage
+
+"""
     ssi = SSIFlash()
 
 Flash method that uses successive subtition. Unconditionally convergent, does
@@ -46,10 +61,13 @@ end
 struct PhaseStabilityStatus
     stable::Bool
     trivial::Bool
-    function PhaseStabilityStatus(stable = false; trivial = stable)
+    function PhaseStabilityStatus(stable::Bool, trivial::Bool)
         return new(stable, trivial && stable)
     end
 end
+
+PhaseStabilityStatus(stable::Bool = false; trivial::Bool = stable) =
+    PhaseStabilityStatus(stable, trivial)
 
 function Base.show(io::IOContext, sr::PhaseStabilityStatus)
     compact = get(io, :compact, false)
@@ -66,16 +84,20 @@ struct StabilityReport
     stable::Bool
     liquid::PhaseStabilityStatus
     vapor::PhaseStabilityStatus
+    function StabilityReport(stable_liquid::Bool, trivial_liquid::Bool,
+            stable_vapor::Bool, trivial_vapor::Bool)
+        new(stable_liquid && stable_vapor,
+            PhaseStabilityStatus(stable_liquid, trivial_liquid),
+            PhaseStabilityStatus(stable_vapor, trivial_vapor)
+        )
+    end
     function StabilityReport(;
             stable_liquid::Bool = false,
             trivial_liquid::Bool = stable_liquid,
             stable_vapor::Bool = false,
             trivial_vapor::Bool = stable_vapor,
         )
-        new(stable_liquid && stable_vapor,
-            PhaseStabilityStatus(stable_liquid, trivial = trivial_liquid),
-            PhaseStabilityStatus(stable_vapor, trivial = trivial_vapor)
-        )
+        StabilityReport(stable_liquid, trivial_liquid, stable_vapor, trivial_vapor)
     end
 end
 

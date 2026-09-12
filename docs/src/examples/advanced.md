@@ -38,64 +38,49 @@ S = flash_storage(eos, conditions, method = m)
 16
 ```
 
-See the unit tests for examples where the flash can use `StaticArrays` to avoid allocations entirely.
+## Immutable performance and GPU use
 
-## Performance example
-
-The default interface is designed for ease-of-use with standard Julia types, but the module  also supports further by using `StaticArrays`:
-
-```julia
-using MultiComponentFlash, BenchmarkTools, StaticArrays
-function bench(m, static_size = false)
-    p = 6e6
-    T = 480.0
-    # Take the SPE5 benchmark
-    eos, data = cubic_benchmark("spe5")
-    n = number_of_components(eos)
-    z = repeat([1/n], n)
-    conditions = (p = p, T = T, z = z)
-    S = flash_storage(eos, conditions, method = m, static_size = static_size)
-    K = initial_guess_K(eos, conditions)
-    if static_size
-        N = number_of_components(eos)
-        K = MVector{N}(K)
-    end
-    V, K, status = flash_2ph!(S, K, eos, conditions, NaN, method = m, extra_out = true)
-    println("V = $V (Completed in $(status.its) iterations)")
-    @btime flash_2ph!($S, $K, $eos, $conditions, NaN, method = $m)
-    return nothing
-end
-println("SSI:")
-bench(SSIFlash())
-println("SSI (static arrays):")
-bench(SSIFlash(), true)
-##
-println("Newton:")
-bench(NewtonFlash())
-println("Newton (static arrays):")
-bench(NewtonFlash(), true)
-```
-
-The output will be a bit different on other CPUs, but this flash generally takes around 20 microseconds to complete, including both stability test and flash.
+[`flash_2ph_immutable`](@ref) is the public interface to the fully static SSI path.
+It is useful when the component count is small and fixed, particularly inside CPU
+or GPU kernels. Convert the EOS once with [`make_eos_immutable`](@ref), and provide the
+overall composition as an `SVector`:
 
 ```julia
-SSI:
-V = 0.03279769425318795 (Completed in 14 iterations)
-  18.500 μs (0 allocations: 0 bytes)
-SSI (static arrays):
-V = 0.03279769425318795 (Completed in 14 iterations)
-  16.500 μs (0 allocations: 0 bytes)
+using BenchmarkTools, MultiComponentFlash, StaticArrays
 
-Newton:
-V = 0.032797694260046494 (Completed in 4 iterations)
-  20.100 μs (0 allocations: 0 bytes)
-Newton (static arrays):
-V = 0.032797694260046494 (Completed in 4 iterations)
-  19.900 μs (0 allocations: 0 bytes)
+eos_static = make_eos_immutable(eos)
+conditions_static = (p = p, T = T, z = SVector{length(z)}(z))
+
+V, K = flash_2ph_immutable(eos_static, conditions_static)
+@btime flash_2ph_immutable($eos_static, $conditions_static)
 ```
 
-!!! note "Use of `StaticArrays`"
-    Switching to statically sized arrays can improve the speed, at the cost of longer compilation times. Please note that for `StaticArrays` there will be compilation that is dependent on the number of components in your mixture. For example, switching from a five to six component mixture will trigger a full recompilation of your chosen flash.
+`V` is the scalar vapor fraction and `K` is an `SVector`. All working vectors are
+immutable values local to the call; the input `conditions_static.z` must also be an
+`SVector`. The implementation currently supports `GenericCubicEOS` with
+`SSIFlash`, and compilation is specialized on the number of components.
+
+The two-argument form creates the static storage marker automatically. It can also
+be constructed once and passed as the final positional argument:
+
+```julia
+storage = flash_storage(eos_static, conditions_static; static = true)
+V, K = flash_2ph_immutable(eos_static, conditions_static, storage)
+@btime flash_2ph_immutable($eos_static, $conditions_static, $storage)
+```
+
+Static storage is a zero-size immutable marker rather than a mutable work buffer,
+so constructing it inline normally compiles away and does not allocate. Passing it
+explicitly can still be convenient when setting up a kernel. For example, each
+kernel work item can construct its conditions and call:
+
+```julia
+conditions_i = (p = pressure[i], T = temperature[i], z = z_static)
+V, K = flash_2ph_immutable(eos_static, conditions_i, storage)
+```
+
+Do not share ordinary mutable storage from `flash_storage(...; static = false)`
+between kernel work items.
 
 ## Generate and plot a phase diagram
 

@@ -11,8 +11,10 @@ number_of_components(e::AbstractEOS) = number_of_components(e.mixture)
 forces_per_phase(eos::GenericCubicEOS) = false
 
 function get_phase(cond)
-    return get(cond, :phase, :unknown)::Symbol
+    return phase_symbol(get(cond, :phase, :unknown))
 end
+
+@inline phase_symbol(phase::Symbol) = phase
 
 function set_phase(cond, phase::Symbol, throw::Bool = false)
     if throw && haskey(cond, :phase) && cond.phase != :unknown
@@ -93,34 +95,40 @@ minimum_allowable_root(eos, forces, scalars) = 1e-16
     return roots
 end
 
-function pick_root(eos, roots, cond, forces, scalars)
-    phase = get_phase(cond)
-    r_ϵ = minimum_allowable_root(eos, forces, scalars)
-    max_r = maximum(roots)
-    min_r = minimum((x) -> x > r_ϵ ? x : Inf, roots)
-    if min_r == max_r
-        r = min_r
-    elseif phase == :liquid
-        r = min_r
-    elseif phase == :vapor
-        r = max_r
-    else
-        function Gibbs(Z)
-            E = 0.0
-            z = cond.z
-            @inbounds for i in eachindex(z)
-                ϕ = component_fugacity_coefficient(eos, cond, i, Z, forces, scalars)
-                E += z[i]*ϕ
-            end
-            return E
-        end
-        if Gibbs(min_r) < Gibbs(max_r)
-            r = min_r
-        else
-            r = max_r
+@inline function root_bounds(roots, minimum_root)
+    max_root = -Inf
+    min_root = Inf
+    for root in roots
+        max_root = max(max_root, root)
+        if root > minimum_root
+            min_root = min(min_root, root)
         end
     end
-    return r
+    return min_root, max_root
+end
+
+@inline function pick_root(eos, roots, cond, forces, scalars)
+    phase = get(cond, :phase, :unknown)
+    return pick_root(eos, roots, cond, forces, scalars, phase)
+end
+
+function pick_root(eos, roots, cond, forces, scalars, phase::Symbol)
+    min_r, max_r = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
+    if min_r == max_r || phase == :liquid
+        return min_r
+    elseif phase == :vapor
+        return max_r
+    end
+    function Gibbs(Z)
+        E = 0.0
+        z = cond.z
+        @inbounds for i in eachindex(z)
+            ϕ = component_fugacity_coefficient(eos, cond, i, Z, forces, scalars)
+            E += z[i]*ϕ
+        end
+        return E
+    end
+    return Gibbs(min_r) < Gibbs(max_r) ? min_r : max_r
 end
 
 """
@@ -138,9 +146,9 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     n = number_of_components(eos)
     eT = Base.promote_eltype(cond.p, cond.T, cond.z[1])
     if static_size
-        A_ij = @MMatrix zeros(eT, n, n)
-        A_i = @MVector zeros(eT, n)
-        B_i = @MVector zeros(eT, n)
+        A_ij = zero(MMatrix{n, n, eT})
+        A_i = zero(MVector{n, eT})
+        B_i = zero(MVector{n, eT})
     else
         A_ij = zeros(eT, n, n)
         A_i = zeros(eT, n)
