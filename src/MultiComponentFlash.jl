@@ -19,7 +19,7 @@ module MultiComponentFlash
     export KValuesEOS
     export number_of_components
     # Flash interfaces
-    export flash_2ph, flash_2ph!, flash_storage
+    export flash_2ph, flash_2ph!, flash_2ph_immutable, flash_storage
     export stability_2ph, stability_2ph!
     # Algorithms for flash
     export SSIFlash, NewtonFlash, SSINewtonFlash, FlashConfig, StaticConfig

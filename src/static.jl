@@ -14,6 +14,32 @@ function flash_storage(eos::GenericCubicEOS, cond, method, config::StaticConfig;
     return config
 end
 
+"""
+    V, K = flash_2ph_immutable(eos, c[, storage]; <keyword arguments>)
+
+Run the immutable, accelerator-friendly two-phase flash implementation.
+`c.z` must be an `SVector`; `K` is returned as an `SVector` and `V` is the
+scalar vapor fraction. When `storage` is omitted, a static storage marker is
+created automatically.
+
+The immutable path currently supports `SSIFlash` and generic cubic EOS values
+converted with [`static_eos`](@ref).
+"""
+@inline function flash_2ph_immutable(eos, c; method = SSIFlash(), kwarg...)
+    return flash_2ph_immutable(eos, c,
+        flash_storage(eos, c; method = method, static = true);
+        method = method, kwarg...)
+end
+
+@inline function flash_2ph_immutable(eos, c, storage::StaticConfig;
+        method = SSIFlash(), kwarg...)
+    c.z isa SVector || throw(ArgumentError(
+        "flash_2ph_immutable requires c.z to be an SVector"))
+    V, K, _ = flash_2ph!(storage, initial_guess_K(eos, c, storage), eos, c,
+        NaN; method = method, extra_out = true, kwarg...)
+    return V, K
+end
+
 """Return an isbits representation of a mixture for accelerator kernels."""
 function static_mixture(mixture::MultiComponentMixture{R, N}) where {R, N}
     names = ntuple(_ -> nothing, Val(N))

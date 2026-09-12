@@ -71,6 +71,14 @@ end
     @test config_report.converged
     @test V_config ≈ V
     @test K_config ≈ K
+
+    V_immutable, K_immutable = flash_2ph_immutable(eos, c)
+    @test V_immutable ≈ V
+    @test K_immutable ≈ K
+    @test K_immutable isa SVector{3, Float64}
+    @test flash_2ph_immutable(eos, c, storage) == (V_immutable, K_immutable)
+    @test_throws ArgumentError flash_2ph_immutable(eos,
+        (p = c.p, T = c.T, z = collect(c.z)))
 end
 
 @testset "Partial derivatives" begin
