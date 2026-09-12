@@ -9,9 +9,10 @@ Estimate K-values for a given acentric factor ω and pressure and temperature at
 
 Reference [Vapor-Liquid Equilibrium. XI. A New Expression for the Excess Free Energy of Mixing by GM Wilson](https://doi.org/10.1021/ja01056a002)
 """
-function wilson_estimate(p::R, T::R, ω::R, p_c::R, T_c::R) where R<:Real
+function wilson_estimate(p, T, ω, p_c, T_c)
+    R = Base.promote_typeof(p, T, ω, p_c, T_c)
     K = exp(5.37*(1.0 + ω)*(1.0 - T_c/T))*(p_c/p)
-    return K::R
+    return convert(R, K)
 end
 
 """

@@ -135,6 +135,19 @@ end
     return (A_ij = A_ij_static, A_i = A_i_static, B_i = B_i_static)
 end
 
+function make_eos_immutable(eos::KValuesEOS{T, R, N}) where {T, R, N}
+    mixture = static_mixture(eos.mixture)
+    evaluator = eos.K_values_evaluator
+    if evaluator isa AbstractVector
+        evaluator = SVector{N, eltype(evaluator)}(evaluator)
+    end
+    volume_shift = eos.volume_shift
+    if !isnothing(volume_shift)
+        volume_shift = SVector{N, eltype(volume_shift)}(volume_shift)
+    end
+    return KValuesEOS(evaluator, mixture; volume_shift = volume_shift)
+end
+
 @inline function static_condition(c, ::Type{F}, ::Val{N};
         z_min = nothing) where {F, N}
     z = SVector{N, F}(ntuple(Val(N)) do i
@@ -270,12 +283,14 @@ end
     return V
 end
 
-@inline function static_fugacities(eos::GenericCubicEOS{E, R, N}, cond, forces,
+@generated function static_fugacities(eos::GenericCubicEOS{E, R, N}, cond, forces,
         ::Type{F}) where {E, R, N, F}
-    Z, scalars = prep(eos, cond, forces)
-    return SVector{N, F}(ntuple(Val(N)) do component
-        component_fugacity(eos, cond, component, Z, forces, scalars)
-    end)
+    values = [:(component_fugacity(
+        eos, cond, $i, Z, forces, scalars)) for i in 1:N]
+    return quote
+        Z, scalars = prep(eos, cond, forces)
+        SVector{N, F}(($(values...),))
+    end
 end
 
 @inline function static_ssi(K::SVector{N, F}, p::F, T::F, z, V::F,

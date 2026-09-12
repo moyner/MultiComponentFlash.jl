@@ -196,6 +196,23 @@ end
     @test number_of_components(eos) == 2
     eos2 = KValuesEOS(cond -> [0.01, 2.0], mixture)
     @test round(flash_2ph(eos2, cond), digits = 4) ≈ 0.8091
+
+    static_eos = make_eos_immutable(eos)
+    static_cond = (p = cond.p, T = cond.T, z = @SVector [0.1, 0.9])
+    @test isbitstype(typeof(static_eos))
+    @test static_eos.K_values_evaluator isa SVector{2, Float64}
+    @test round(flash_2ph(static_eos, static_cond), digits = 4) ≈ 0.8091
+end
+
+@testset "Static flashed mixture storage" begin
+    x = @SVector [0.8, 0.2]
+    y = @SVector [0.1, 0.9]
+    flashed = FlashedMixture2Phase(
+        MultiComponentFlash.two_phase_lv, SVector(0.125, 4.5),
+        0.4, x, y, 0.9, 1.1)
+    @test isbitstype(typeof(flashed))
+    @test phase_data(flashed, Val(:liquid)).mole_fractions === x
+    @test phase_data(flashed, Val(:vapor)).mole_fractions === y
 end
 
 using ForwardDiff

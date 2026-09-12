@@ -82,7 +82,9 @@ end
 function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V, b = NaN, cond = missing, stability = StabilityReport())
     liquid = FlashedPhase(x, Z_L)
     vapor = FlashedPhase(y, Z_V)
-    return FlashedMixture2Phase(state, K, V, liquid, vapor, critical_distance = b, cond = cond, stability_report = stability)
+    return FlashedMixture2Phase(state, K, V, liquid, vapor,
+        vec_type = typeof(x), critical_distance = b, cond = cond,
+        stability_report = stability)
 end
 
 function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64, b = NaN, cond = missing, stability = StabilityReport())
