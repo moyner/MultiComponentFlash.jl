@@ -303,12 +303,12 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
         K[c] *= r
         ϵ = max(ϵ, abs(1-r))
     end
-    V = solve_rachford_rice(K, z, V)
+    V = cap_unit(solve_rachford_rice(K, z, V))
     return (V, ϵ)::Tuple{F, F}
 end
 
 cap_z(z) = min(max(z, MINIMUM_COMPOSITION), one(z))
-cap_unit(v) = min(max(v, zero(z)), one(z))
+cap_unit(v) = min(max(v, zero(v)), one(v))
 cap_VL(v) = min(max(v, MINIMUM_COMPOSITION), 1 - MINIMUM_COMPOSITION)
 
 function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iteration)

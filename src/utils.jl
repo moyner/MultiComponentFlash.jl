@@ -134,6 +134,12 @@ function michelsen_critical_point_measure(eos, p, T, mole_numbers; kwarg...)
     michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
 end
 
+@inline function michelsen_critical_point_measure(
+        eos::GenericCubicEOS{E, R, N}, p, T,
+        mole_numbers::SVector{N, F}; kwarg...) where {E, R, N, F}
+    return static_michelsen_critical_point_measure(eos, p, T, mole_numbers)
+end
+
 function michelsen_critical_point_measure!(S, eos, p, T, mole_numbers)
     # From Michelsen (1982): The Isothermal Flash Problem. Part I: Stability
     # Estimate the distance to the critical point through smallest eigenvalue.

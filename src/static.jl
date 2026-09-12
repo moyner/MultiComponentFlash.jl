@@ -22,23 +22,49 @@ Run the immutable, accelerator-friendly two-phase flash implementation.
 scalar vapor fraction. When `storage` is omitted, a static storage marker is
 created automatically.
 
+Set `return_stability=true` to additionally return a
+[`StaticStabilityResult`](@ref). Its immutable `storage` can be supplied as
+`stability_storage` on the next call to enable the Michelsen bypass. The
+default `bypass_tolerance=10` uses the same conservative pressure, temperature
+and composition bounds as the mutable simulator integration.
+
 The immutable path currently supports `SSIFlash` and generic cubic EOS values
 converted with [`make_eos_immutable`](@ref).
 """
-@inline function flash_2ph_immutable(eos, c; method = SSIFlash(), kwarg...)
+@inline function flash_2ph_immutable(eos, c;
+        method = SSIFlash(),
+        stability_storage = nothing,
+        stability_bypass::Bool = !isnothing(stability_storage),
+        return_stability::Bool = false,
+        kwarg...)
     return flash_2ph_immutable(eos, c,
         flash_storage(eos, c; method = method, static = true);
-        method = method, kwarg...)
+        method = method,
+        stability_storage = stability_storage,
+        stability_bypass = stability_bypass,
+        return_stability = return_stability,
+        kwarg...)
 end
 
 @inline function flash_2ph_immutable(eos, c, storage::StaticConfig;
-        method = SSIFlash(), kwarg...)
+        method = SSIFlash(),
+        stability_storage = nothing,
+        stability_bypass::Bool = !isnothing(stability_storage),
+        return_stability::Bool = false,
+        kwarg...)
     c.z isa SVector || throw(ArgumentError(
         "flash_2ph_immutable requires c.z to be an SVector"))
-    V, K, _ = flash_2ph!(storage, initial_guess_K(eos, c, storage), eos, c,
-        NaN; method = method, extra_out = true, kwarg...)
-    return V, K
+    V, K, report = flash_2ph!(storage, initial_guess_K(eos, c, storage), eos, c,
+        NaN; method = method, extra_out = true,
+        stability_storage = stability_storage,
+        stability_bypass = stability_bypass || return_stability,
+        kwarg...)
+    return immutable_flash_output(V, K, report.stability_result,
+        Val(return_stability))
 end
+
+@inline immutable_flash_output(V, K, stability, ::Val{false}) = (V, K)
+@inline immutable_flash_output(V, K, stability, ::Val{true}) = (V, K, stability)
 
 """Return an isbits representation of a mixture for accelerator kernels."""
 function static_mixture(mixture::MultiComponentMixture{R, N}) where {R, N}
@@ -107,6 +133,69 @@ end
             (one(T) - binary_interaction(eos, i, j, cond))
     end)
     return (A_ij = A_ij_static, A_i = A_i_static, B_i = B_i_static)
+end
+
+@inline function static_condition(c, ::Type{F}, ::Val{N};
+        z_min = nothing) where {F, N}
+    z = SVector{N, F}(ntuple(Val(N)) do i
+        isnothing(z_min) ? c.z[i] : max(c.z[i], z_min)
+    end)
+    return (p = convert(F, c.p), T = convert(F, c.T), z = z)
+end
+
+@inline invalid_stability_storage(cond) =
+    StaticStabilityStorage(cond, convert(typeof(cond.p), NaN))
+
+@inline function stability_bypass_available(storage::StaticStabilityStorage,
+        cond; tolerance::Real = 10.0)
+    tolerance > zero(tolerance) || throw(ArgumentError(
+        "bypass_tolerance must be positive"))
+    b = storage.critical_distance
+    if !(isfinite(b) && b > zero(b))
+        return false
+    end
+    reference = storage.reference
+    return maximum(abs, reference.z - cond.z) < b/tolerance &&
+        abs(reference.p - cond.p) < b*abs(cond.p)/tolerance &&
+        abs(reference.T - cond.T) < b*tolerance
+end
+
+@inline static_minimum_eigenvalue(B::SMatrix) =
+    minimum(eigvals(Symmetric(B)))
+
+"""Immutable Michelsen critical-point distance used by the stability bypass."""
+@generated function static_fugacity_coefficients(
+        eos::GenericCubicEOS{E, R, N}, cond, Z, forces, scalars,
+        ::Type{D}) where {E, R, N, D}
+    values = [:(component_fugacity_coefficient(
+        eos, cond, $i, Z, forces, scalars)) for i in 1:N]
+    return :(SVector{N, D}(($(values...),)))
+end
+
+@inline function static_michelsen_critical_point_measure(
+        eos::GenericCubicEOS{E, R, N}, p, temperature,
+        mole_numbers::SVector{N, F}) where {E, R, N, F}
+    D = ForwardDiff.Dual{Nothing, F, N}
+    mole_numbers_ad = SVector{N, D}(ntuple(Val(N)) do i
+        partials = ForwardDiff.single_seed(ForwardDiff.Partials{N, F}, Val(i))
+        D(mole_numbers[i], partials)
+    end)
+    z = mole_numbers_ad/sum(mole_numbers_ad)
+    cond = (p = convert(F, p), T = convert(F, temperature), z = z)
+    forces = static_force_coefficients(eos, cond, D)
+    scalars = force_scalars(eos, cond, forces)
+    Z = mixture_compressibility_factor(eos, cond, forces, scalars)
+    coefficients = static_fugacity_coefficients(
+        eos, cond, Z, forces, scalars, D)
+    B = SMatrix{N, N, F}(ntuple(Val(N*N)) do index
+        i = mod1(index, N)
+        j = (index - 1) ÷ N + 1
+        F(i == j) + sqrt(mole_numbers[i]*mole_numbers[j])*coefficients[i].partials[j]
+    end)
+    # Roundoff in the AD construction can make the theoretically symmetric
+    # matrix differ by a few ulps. Symmetrize before finding its eigenvalues.
+    B = (B + transpose(B))/2
+    return static_minimum_eigenvalue(B)
 end
 
 @inline function solve_rachford_rice(K::StaticVector{2}, z::StaticVector{2}, V = NaN)
@@ -203,7 +292,7 @@ end
         residual = max(residual, abs(one(F) - ratios[i]))
     end
     K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
-    V_next = solve_rachford_rice(K_next, z, V)
+    V_next = cap_unit(solve_rachford_rice(K_next, z, V))
     return V_next, K_next, residual
 end
 
@@ -230,23 +319,33 @@ end
         check::Bool = true,
         update_forces::Bool = true,
         z_min = MINIMUM_COMPOSITION,
+        stability_storage = nothing,
+        stability_bypass::Bool = !isnothing(stability_storage),
+        bypass_tolerance::Real = 10.0,
         kwarg...
     ) where {E, R, N}
     F = Base.promote_eltype(c.p, c.T, c.z[1], K[1])
-    z = SVector{N, F}(ntuple(Val(N)) do i
-        isnothing(z_min) ? c.z[i] : max(c.z[i], z_min)
-    end)
     K = SVector{N, F}(K)
-    cond = (p = convert(F, c.p), T = convert(F, c.T), z = z)
+    cond = static_condition(c, F, Val(N); z_min = z_min)
+    z = cond.z
     forces = static_force_coefficients(eos, cond, F)
     V = convert(F, V)
     single_phase_init = isnan(V) || V == one(F) || V == zero(F)
     if single_phase_init
-        stable, stability_report, K = static_stability_2ph(
-            K, eos, cond, forces; maxiter = maxiter, kwarg...)
+        stability_result = static_stability_2ph(K, eos, cond, forces;
+            storage = stability_storage_value(stability_storage),
+            update_bypass = stability_bypass,
+            bypass_tolerance = bypass_tolerance,
+            maxiter = maxiter,
+            kwarg...)
+        stable = stability_result.stable
+        stability_report = stability_result.report
+        K = stability_result.K
     else
         stable = false
         stability_report = StabilityReport(false, false, false, false)
+        stability_result = StaticStabilityResult(stable, stability_report, K,
+            invalid_stability_storage(cond), false)
     end
     converged = false
     if stable
@@ -263,7 +362,8 @@ end
             iteration += 1
         end
     end
-    report = (its = iteration, converged = converged, stability = stability_report)
+    report = (its = iteration, converged = converged,
+        stability = stability_report, stability_result = stability_result)
     return V, K, report
 end
 
@@ -342,8 +442,17 @@ end
 @inline function static_stability_2ph(K::SVector{N, F}, eos, cond, forces;
         check_vapor::Bool = true,
         check_liquid::Bool = true,
+        storage = nothing,
+        update_bypass::Bool = false,
+        bypass_tolerance::Real = 10.0,
         kwarg...
     ) where {N, F}
+    if update_bypass && !isnothing(storage) &&
+            stability_bypass_available(storage, cond;
+                tolerance = bypass_tolerance)
+        report = StabilityReport(true, true, true, true)
+        return StaticStabilityResult(true, report, K, storage, true)
+    end
     vapor_phase = (p = cond.p, T = cond.T, z = cond.z, phase = Val(:vapor))
     f_z_vapor = static_fugacities(eos, vapor_phase, forces, F)
     K_wilson = initial_guess_K(eos, cond, StaticConfig())
@@ -365,19 +474,61 @@ end
     report = StabilityReport(stable_liquid, trivial_liquid,
         stable_vapor, trivial_vapor)
     K_out = report.stable ? K_liquid : static_divide(y, x)
-    return report.stable, report, K_out
+    if update_bypass && report.stable && report.liquid.trivial &&
+            report.vapor.trivial
+        critical_distance = static_michelsen_critical_point_measure(
+            eos, cond.p, cond.T, cond.z)
+        next_storage = StaticStabilityStorage(cond, critical_distance)
+    else
+        next_storage = invalid_stability_storage(cond)
+    end
+    return StaticStabilityResult(report.stable, report, K_out,
+        next_storage, false)
 end
 
 @inline function stability_2ph(eos::GenericCubicEOS{E, R, N}, c, K,
         config::StaticConfig; extra_out::Bool = false, kwarg...) where {E, R, N}
     F = Base.promote_eltype(c.p, c.T, c.z[1], K[1])
-    cond = (p = convert(F, c.p), T = convert(F, c.T),
-        z = SVector{N, F}(c.z))
+    cond = static_condition(c, F, Val(N))
     K = SVector{N, F}(K)
     forces = static_force_coefficients(eos, cond, F)
-    stable, report, _ = static_stability_2ph(K, eos, cond, forces; kwarg...)
-    return extra_out ? (stable, report) : stable
+    result = static_stability_2ph(K, eos, cond, forces; kwarg...)
+    return extra_out ? (result.stable, result.report) : result.stable
 end
 
 @inline stability_2ph!(::StaticConfig, K, eos::GenericCubicEOS, c; kwarg...) =
     stability_2ph(eos, c, K, StaticConfig(); kwarg...)
+
+"""
+    result = stability_2ph_immutable(eos, c[, storage]; <keyword arguments>)
+
+Run the immutable stability test independently of a flash. The returned
+[`StaticStabilityResult`](@ref) contains the stability report, K-values and
+updated [`StaticStabilityStorage`](@ref). Pass `result.storage` to a later call
+to enable Michelsen's stability bypass for nearby conditions.
+
+The bypass is only armed after both trial phases converge to trivial stable
+solutions. Calls inside the shadow region retain the full stability test.
+"""
+@inline function stability_2ph_immutable(eos::GenericCubicEOS{E, R, N}, c,
+        storage = nothing;
+        K = initial_guess_K(eos, c, StaticConfig()),
+        bypass_tolerance::Real = 10.0,
+        z_min = MINIMUM_COMPOSITION,
+        kwarg...) where {E, R, N}
+    c.z isa SVector || throw(ArgumentError(
+        "stability_2ph_immutable requires c.z to be an SVector"))
+    F = Base.promote_eltype(c.p, c.T, c.z[1], K[1])
+    cond = static_condition(c, F, Val(N); z_min = z_min)
+    K = SVector{N, F}(K)
+    forces = static_force_coefficients(eos, cond, F)
+    return static_stability_2ph(K, eos, cond, forces;
+        storage = stability_storage_value(storage),
+        update_bypass = true,
+        bypass_tolerance = bypass_tolerance,
+        kwarg...)
+end
+
+@inline stability_storage_value(::Nothing) = nothing
+@inline stability_storage_value(storage::StaticStabilityStorage) = storage
+@inline stability_storage_value(result::StaticStabilityResult) = result.storage
