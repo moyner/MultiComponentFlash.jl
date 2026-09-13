@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>EOS reference validation · MultiComponentFlash.jl</title><meta name="title" content="EOS reference validation · MultiComponentFlash.jl"/><meta property="og:title" content="EOS reference validation · MultiComponentFlash.jl"/><meta property="twitter:title" content="EOS reference validation · MultiComponentFlash.jl"/><meta name="description" content="Documentation for MultiComponentFlash.jl."/><meta property="og:description" content="Documentation for MultiComponentFlash.jl."/><meta property="twitter:description" content="Documentation for MultiComponentFlash.jl."/><meta property="og:url" content="https://moyner.github.io/MultiComponentFlash.jl/examples/eos_validation/"/><meta property="twitter:url" content="https://moyner.github.io/MultiComponentFlash.jl/examples/eos_validation/"/><link rel="canonical" href="https://moyner.github.io/MultiComponentFlash.jl/examples/eos_validation/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.63.2/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">MultiComponentFlash.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../basics/">Basic usage</a></li><li><a class="tocitem" href="../advanced/">Advanced usage</a></li><li class="is-active"><a class="tocitem" href>EOS reference validation</a><ul class="internal"><li><a class="tocitem" href="#Comparison-matrix"><span>Comparison matrix</span></a></li><li><a class="tocitem" href="#Parity-plots"><span>Parity plots</span></a></li></ul></li></ul></li><li><span class="tocitem">API</span><ul><li><a class="tocitem" href="../../api/mixtures/">Mixtures</a></li><li><a class="tocitem" href="../../api/kvalues/">Equilibrium constants</a></li><li><a class="tocitem" href="../../api/eos/">Equations of state</a></li><li><a class="tocitem" href="../../api/flash/">Vapor-liquid equilibrium (Flash)</a></li><li><a class="tocitem" href="../../api/utilities/">Utilities</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>EOS reference validation</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>EOS reference validation</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/moyner/MultiComponentFlash.jl/blob/main/docs/src/examples/eos_validation.md#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="EOS-reference-validation"><a class="docs-heading-anchor" href="#EOS-reference-validation">EOS reference validation</a><a id="EOS-reference-validation-1"></a><a class="docs-heading-anchor-permalink" href="#EOS-reference-validation" title="Permalink"></a></h1><p>This example compares Peng-Robinson 1976 (PR76), Soave-Redlich-Kwong (SRK), and Redlich-Kwong (RK) with <a href="https://github.com/ClapeyronThermo/Clapeyron.jl">Clapeyron.jl</a>. It checks compressibility and fugacity coefficients for a set of cases.</p><h2 id="Comparison-matrix"><a class="docs-heading-anchor" href="#Comparison-matrix">Comparison matrix</a><a id="Comparison-matrix-1"></a><a class="docs-heading-anchor-permalink" href="#Comparison-matrix" title="Permalink"></a></h2><pre><code class="language-julia hljs">using Clapeyron, MultiComponentFlash, Test
+
+names = [&quot;carbon dioxide&quot;, &quot;methane&quot;, &quot;decane&quot;]
+properties = (
+    MolecularProperty(0.0440, 7.38e6, 304.1, 9.412e-5, 0.224),
+    MolecularProperty(0.0160, 4.60e6, 190.6, 9.863e-5, 0.011),
+    MolecularProperty(0.1420, 2.10e6, 617.7, 6.098e-4, 0.488),
+)
+conditions = (
+    (p = 1.0e6, T = 300.0, z = [0.5, 0.3, 0.2]),
+    (p = 5.0e6, T = 350.0, z = [0.2, 0.7, 0.1]),
+    (p = 2.0e7, T = 500.0, z = [0.1, 0.2, 0.7]),
+)
+interactions = (
+    zeros(3, 3),
+    [0.0 0.08 0.03; 0.08 0.0 0.015; 0.03 0.015 0.0],
+)
+
+function compare_cubic_eos(names, properties, conditions, interactions)
+    relative_error(value, reference) =
+        abs(value - reference)/max(abs(reference), eps(Float64))
+    Tc = [property.T_c for property in properties]
+    Pc = [property.p_c for property in properties]
+    Mw = [1000property.mw for property in properties]
+    acentricfactor = [property.ω for property in properties]
+    comparisons = NamedTuple[]
+
+    for k in interactions
+        mixture = MultiComponentMixture(properties; names = names, A_ij = k)
+        parameters = (; Tc, Pc, Mw, acentricfactor, k, l = zeros(size(k)))
+        models = (
+            (label = &quot;PR76&quot;, eos = PengRobinson(),
+                reference = Clapeyron.PR(names;
+                    userlocations = parameters, verbose = false)),
+            (label = &quot;SRK&quot;, eos = SoaveRedlichKwong(),
+                reference = Clapeyron.SRK(names;
+                    userlocations = parameters, verbose = false)),
+            (label = &quot;RK&quot;, eos = RedlichKwong(),
+                reference = Clapeyron.RK(names;
+                    userlocations = parameters, verbose = false)),
+        )
+
+        for model in models, state in conditions
+            eos = GenericCubicEOS(mixture, model.eos)
+            for (phase, reference_phase) in ((:liquid, :l), (:vapor, :v))
+                state_with_phase = (;
+                    p = state.p, T = state.T, z = state.z, phase)
+                forces = force_coefficients(eos, state_with_phase)
+                scalars = force_scalars(eos, state_with_phase, forces)
+                Z = mixture_compressibility_factor(
+                    eos, state_with_phase, forces, scalars)
+                phi = [exp(MultiComponentFlash.component_fugacity_coefficient(
+                    eos, state_with_phase, i, Z, forces, scalars))
+                    for i in eachindex(state.z)]
+
+                reference_volume = Clapeyron.volume(
+                    model.reference, state.p, state.T, state.z;
+                    phase = reference_phase)
+                reference_Z = state.p*reference_volume/
+                    (Clapeyron.Rgas(model.reference)*state.T*sum(state.z))
+                reference_phi = Clapeyron.fugacity_coefficient(
+                    model.reference, state.p, state.T, state.z;
+                    phase = reference_phase)
+
+                push!(comparisons, (;
+                    eos = model.label,
+                    Z,
+                    reference_Z,
+                    Z_relative_error = relative_error(Z, reference_Z),
+                    phi,
+                    reference_phi,
+                    phi_relative_error = relative_error.(phi, reference_phi)))
+            end
+        end
+    end
+    return comparisons
+end
+
+comparisons = compare_cubic_eos(
+    names, properties, conditions, interactions)
+
+@test length(comparisons) == 36
+@test all(row -&gt; isapprox(row.Z, row.reference_Z;
+    rtol = 1.0e-7, atol = 1.0e-10), comparisons)
+@test all(row -&gt; isapprox(row.phi, row.reference_phi;
+    rtol = 1.0e-7, atol = 1.0e-10), comparisons)
+
+length(comparisons)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">36</code></pre><h2 id="Parity-plots"><a class="docs-heading-anchor" href="#Parity-plots">Parity plots</a><a id="Parity-plots-1"></a><a class="docs-heading-anchor-permalink" href="#Parity-plots" title="Permalink"></a></h2><p>The dashed line indicates exact agreement. Fugacity coefficients use logarithmic axes because they span a wider range than <span>$Z$</span>.</p><pre><code class="language-julia hljs">using CairoMakie
+# CairoMakie.activate!(type = &quot;svg&quot;)
+
+eos_names = [&quot;PR76&quot;, &quot;SRK&quot;, &quot;RK&quot;]
+colors = [:dodgerblue3, :darkorange2, :seagreen4]
+
+fig = Figure(size = (920, 410))
+z_axis = Axis(fig[1, 1];
+    xlabel = &quot;Clapeyron Z&quot;,
+    ylabel = &quot;MultiComponentFlash Z&quot;,
+    title = &quot;Compressibility parity&quot;,
+    aspect = DataAspect())
+phi_axis = Axis(fig[1, 2];
+    xlabel = &quot;Clapeyron fugacity coefficient&quot;,
+    ylabel = &quot;MultiComponentFlash fugacity coefficient&quot;,
+    title = &quot;Fugacity-coefficient parity&quot;,
+    xscale = log10,
+    yscale = log10,
+    aspect = DataAspect())
+
+for (eos_name, color) in zip(eos_names, colors)
+    rows = filter(row -&gt; row.eos == eos_name, comparisons)
+    reference_z = [row.reference_Z for row in rows]
+    calculated_z = [row.Z for row in rows]
+    reference_phi = [value for row in rows for value in row.reference_phi]
+    calculated_phi = [value for row in rows for value in row.phi]
+    scatter!(z_axis, reference_z, calculated_z;
+        color = color, markersize = 9, label = eos_name)
+    scatter!(phi_axis, reference_phi, calculated_phi;
+        color = color, markersize = 9, label = eos_name)
+end
+
+z_limits = extrema(vcat(
+    [row.reference_Z for row in comparisons],
+    [row.Z for row in comparisons]))
+phi_limits = extrema(vcat(
+    [value for row in comparisons for value in row.reference_phi],
+    [value for row in comparisons for value in row.phi]))
+z_line = collect(z_limits)
+phi_line = collect(phi_limits)
+lines!(z_axis, z_line, z_line; color = :black, linestyle = :dash)
+lines!(phi_axis, phi_line, phi_line; color = :black, linestyle = :dash)
+axislegend(z_axis; position = :lt)
+fig</code></pre><img src="f36da4f0.svg" alt="Example block output"/><p>The maximum relative error makes the remaining differences visible.</p><pre><code class="language-julia hljs">maximum_z_error = [maximum(row.Z_relative_error
+    for row in comparisons if row.eos == eos_name) for eos_name in eos_names]
+maximum_phi_error = [maximum(maximum(row.phi_relative_error)
+    for row in comparisons if row.eos == eos_name) for eos_name in eos_names]
+
+error_figure = Figure(size = (720, 420))
+error_axis = Axis(error_figure[1, 1];
+    xlabel = &quot;Equation of state&quot;,
+    ylabel = &quot;Maximum relative error&quot;,
+    title = &quot;Worst case across all states, roots, and BIC matrices&quot;,
+    yscale = log10,
+    xticks = (1:length(eos_names), eos_names))
+scatterlines!(error_axis, 1:length(eos_names), maximum_z_error;
+    markersize = 12, label = &quot;Z&quot;)
+scatterlines!(error_axis, 1:length(eos_names), maximum_phi_error;
+    markersize = 12,
+    label = &quot;Fugacity coefficients&quot;)
+axislegend(error_axis; position = :lt)
+error_figure</code></pre><img src="585ed43a.svg" alt="Example block output"/></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../advanced/">« Advanced usage</a><a class="docs-footer-nextpage" href="../../api/mixtures/">Mixtures »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.19.0 on <span class="colophon-date" title="Sunday 13 September 2026 09:47">Sunday 13 September 2026</span>. Using Julia version 1.13.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
