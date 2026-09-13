@@ -93,8 +93,6 @@ end
     return max_root
 end
 
-@inline get_force_coefficients(forces, eos::GenericCubicEOS, cond) = forces
-
 """Immutable force coefficients for accelerator kernels."""
 @inline function static_force_coefficients(eos::GenericCubicEOS{E, R, N}, cond,
         ::Type{T}) where {E, R, N, T}
