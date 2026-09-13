@@ -1,12 +1,15 @@
 using MultiComponentFlash
 using Documenter
-using BenchmarkTools, Plots
+using BenchmarkTools, CairoMakie
+
+# CairoMakie.activate!(type = "svg")
 
 DocMeta.setdocmeta!(MultiComponentFlash, :DocTestSetup, :(using MultiComponentFlash); recursive=true)
 
 makedocs(;
     modules=[MultiComponentFlash],
-    warnonly = true,
+    warnonly = false,
+    checkdocs=:exports,
     authors="Olav Møyner <olav.moyner@gmail.com>",
     repo="https://github.com/moyner/MultiComponentFlash.jl/blob/{commit}{path}#{line}",
     sitename="MultiComponentFlash.jl",
@@ -19,7 +22,8 @@ makedocs(;
         "Home" => "index.md",
         "Examples" => Any[
             "Basic usage" => "examples/basics.md",
-            "Advanced usage" => "examples/advanced.md"
+            "Advanced usage" => "examples/advanced.md",
+            "EOS reference validation" => "examples/eos_validation.md",
         ],
         "API" => Any[
             "Mixtures" => "api/mixtures.md",

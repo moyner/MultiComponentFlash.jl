@@ -159,18 +159,17 @@ function force_coefficients(eos::AbstractCubicEOS, cond; static_size = false)
     return coeff
 end
 
-function get_force_coefficients(forces, eos, cond)
-    if forces_per_phase(eos)
-        phase = get_phase(cond)
-        if phase == :liquid
-            return forces.liquid
-        elseif phase == :vapor
-            return forces.vapor
-        else
-            error("Forces per phase are only supported for liquid and vapor phases, not $phase.")
-        end
+@inline get_force_coefficients(forces, eos, cond) = forces
+
+@inline function get_force_coefficients(
+        forces::NamedTuple{(:liquid, :vapor)}, eos, cond)
+    phase = get_phase(cond)
+    if phase == :liquid
+        return forces.liquid
+    elseif phase == :vapor
+        return forces.vapor
     else
-        return forces
+        error("Forces per phase are only supported for liquid and vapor phases, not $phase.")
     end
 end
 
@@ -363,7 +362,7 @@ function solve_cubic_positive_roots(a, b, c)
     M = R^2 - Q^3
     single_root = M > 0
     if single_root
-        # Single real roots
+        # Single real root
         S = -sign(R)*(abs(R) + sqrt(M))^(1/3)
         if S == 0
             T = 0
@@ -371,9 +370,16 @@ function solve_cubic_positive_roots(a, b, c)
             T = Q/S
         end
         return S + T - a/3
+    elseif iszero(Q)
+        # Q = R = 0: the polynomial has one triple root. The trigonometric
+        # expression below is otherwise undefined (acos(0/0)).
+        return -a/3
     else
         # Three real roots
-        theta = acos(R/sqrt(Q^3))
+        # Clamp guards against a round-off excursion outside [-1, 1] at a
+        # repeated root, where acos is still well defined analytically.
+        acos_arg = clamp(R/sqrt(Q^3), -one(R), one(R))
+        theta = acos(acos_arg)
         r1 = -(2*sqrt(Q)*cos(theta/3)) - a/3
         r2 = -(2*sqrt(Q)*cos((theta + 2*pi)/3)) - a/3
         r3 = -(2*sqrt(Q)*cos((theta - 2*pi)/3)) - a/3
