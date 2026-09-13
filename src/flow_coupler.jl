@@ -62,6 +62,9 @@ function phase_data(mix::FlashedMixture2Phase{T, A, E}, phase) where {T, A, E}
     return out::FlashedPhase{T, A}
 end
 
+@inline phase_data(mix::FlashedMixture2Phase, ::Val{:liquid}) = mix.liquid
+@inline phase_data(mix::FlashedMixture2Phase, ::Val{:vapor}) = mix.vapor
+
 """
     phase_saturations(eos, p, T, flashed_mixture)
 

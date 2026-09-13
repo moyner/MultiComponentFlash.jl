@@ -20,7 +20,8 @@ module MultiComponentFlash
     export number_of_components
     # Flash interfaces
     export flash_2ph, flash_2ph!, flash_2ph_immutable, flash_storage
-    export stability_2ph, stability_2ph!
+    export stability_2ph, stability_2ph!, stability_2ph_immutable
+    export StaticStabilityStorage, StaticStabilityResult
     # Algorithms for flash
     export SSIFlash, NewtonFlash, SSINewtonFlash
     # Mixtures and their molecular makeup

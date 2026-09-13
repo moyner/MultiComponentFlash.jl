@@ -12,6 +12,7 @@ end
 test_conditions() = (p = 10e5, T = 300.0, z = [0.5, 0.3, 0.2])
 
 test_allocs(S, K, eos, c, m) = @allocated flash_2ph!(S, K, eos, c, NaN, method = m)
+test_static_stability_allocs(eos, c) = @allocated stability_2ph_immutable(eos, c)
 
 function test_flash_inplace(m, do_test = true)
     eos = get_test_eos()

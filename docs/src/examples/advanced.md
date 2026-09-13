@@ -79,6 +79,27 @@ conditions_i = (p = pressure[i], T = temperature[i], z = z_static)
 V, K = flash_2ph_immutable(eos_static, conditions_i, storage)
 ```
 
+For a sequence of nearby states, the immutable Michelsen stability bypass can
+reuse the last fully tested single-phase condition:
+
+```julia
+V, K, stability = flash_2ph_immutable(eos_static, conditions_static;
+    return_stability = true)
+
+next_conditions = (p = 1.001p, T = T + 0.01,
+    z = SVector{length(z)}(z))
+V, K, stability = flash_2ph_immutable(eos_static, next_conditions;
+    stability_storage = stability,
+    return_stability = true)
+```
+
+The stability calculation is also available on its own with
+`stability_2ph_immutable`. Its result and nested storage are isbits values and
+can be passed through accelerator kernels. `stability.bypassed` indicates
+whether the full Michelsen test was skipped. Storage is only armed when both
+trial phases converged to trivial stable solutions; the shadow region is
+always retested.
+
 Do not share ordinary mutable storage from `flash_storage(...; static = false)`
 between kernel work items.
 

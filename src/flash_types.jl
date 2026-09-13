@@ -112,3 +112,35 @@ function Base.show(io::IOContext, sr::StabilityReport)
         print(io, "StabilityReport ($s, liquid = $ls, vapor = $vs)")
     end
 end
+
+"""
+    StaticStabilityStorage(reference, critical_distance)
+
+Immutable state used by the Michelsen stability bypass. `reference` is the
+last condition at which a complete stability test was performed outside the
+shadow region, and `critical_distance` is Michelsen's smallest-eigenvalue
+measure at that condition.
+
+The storage is returned after each immutable stability or flash call. Keeping
+the reference condition unchanged across bypassed calls prevents a sequence of
+small updates from drifting across a phase boundary without a new test.
+"""
+struct StaticStabilityStorage{C, T}
+    reference::C
+    critical_distance::T
+end
+
+"""
+    StaticStabilityResult
+
+Result of [`stability_2ph_immutable`](@ref). In addition to the ordinary
+stability report and K-values, it contains the updated immutable bypass
+`storage` and records whether the full stability test was `bypassed`.
+"""
+struct StaticStabilityResult{K, S}
+    stable::Bool
+    report::StabilityReport
+    K::K
+    storage::S
+    bypassed::Bool
+end
