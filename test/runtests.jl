@@ -1,4 +1,5 @@
 include("test_setup.jl")
+include("eos_equations.jl")
 
 @testset "Rachford-Rice" begin
     test_rachford_rice()
