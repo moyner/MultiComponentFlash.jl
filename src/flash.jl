@@ -170,8 +170,11 @@ See also: [`flash_2ph!`](@ref) [`set_partials`](@ref)
 """
 function flash_storage(eos, cond = (p = 10e5, T = 273.15, z = zeros(number_of_components(eos)));
         method = SSIFlash(), static::Bool = false, static_size = nothing, kwarg...)
-    isnothing(static_size) || throw(ArgumentError(
-        "`static_size` has been replaced by `static`; use `static=true` for the fully static path."))
+    if !isnothing(static_size)
+        Base.depwarn("`static_size` is deprecated; use `static=$(static_size)` instead.",
+            :flash_storage)
+        static = static_size
+    end
     config = static ? StaticConfig() : FlashConfig()
     return flash_storage(eos, cond, method, config; kwarg...)
 end
@@ -303,12 +306,12 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
         K[c] *= r
         ϵ = max(ϵ, abs(1-r))
     end
-    V = cap_unit(solve_rachford_rice(K, z, V))
+    V = solve_rachford_rice(K, z, V)
+    V = clamp(V, zero(V), one(V))
     return (V, ϵ)::Tuple{F, F}
 end
 
 cap_z(z) = min(max(z, MINIMUM_COMPOSITION), one(z))
-cap_unit(v) = min(max(v, zero(v)), one(v))
 cap_VL(v) = min(max(v, MINIMUM_COMPOSITION), 1 - MINIMUM_COMPOSITION)
 
 function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iteration)

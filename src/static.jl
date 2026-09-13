@@ -305,7 +305,8 @@ end
         residual = max(residual, abs(one(F) - ratios[i]))
     end
     K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
-    V_next = cap_unit(solve_rachford_rice(K_next, z, V))
+    V_next = solve_rachford_rice(K_next, z, V)
+    V_next = clamp(V_next, zero(V_next), one(V_next))
     return V_next, K_next, residual
 end
 

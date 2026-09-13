@@ -61,7 +61,10 @@ end
     normal_config = MultiComponentFlash.FlashConfig(print_output=false)
     @test typeof(normal_config) == MultiComponentFlash.FlashConfig
     @test flash_storage(eos, c, SSIFlash(), normal_config).x isa Vector
-    @test_throws ArgumentError flash_storage(eos, c; static_size = true)
+    deprecated_storage = @test_deprecated flash_storage(eos, c; static_size = true)
+    @test deprecated_storage isa MultiComponentFlash.StaticConfig
+    dynamic_storage = @test_deprecated flash_storage(eos, c; static_size = false)
+    @test dynamic_storage.x isa Vector
 
     config = MultiComponentFlash.FlashConfig(print_output=false, use_dict_storage=false)
     @test typeof(config) == MultiComponentFlash.FlashConfig
