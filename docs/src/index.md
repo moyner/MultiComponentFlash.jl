@@ -11,9 +11,12 @@ This package implements several equations of state for multicomponent vapor-liqu
  The following equations of state (EOS) are implemented as a class of generic cubics:
 
 * [Peng-Robinson](https://doi.org/10.1021/i160057a011)
+* Corrected Peng-Robinson for large acentric factors
 * [Redlich-Kwong](https://doi.org/10.1021/cr60137a013)
 * [Soave-Redlich-Kwong](https://doi.org/10.1016/0009-2509(72)80096-4)
 * [Zudkevitch-Joffe](https://doi.org/10.1002/aic.690160122)
+* [Soreide-Whitson](https://doi.org/10.1016/0378-3812(92)85105-H) for
+  water and brine mixtures
 
 The code is fully type stable, easy to use and fairly performant, with additional options to avoid allocations if you need to perform many flashes. The main implementation goal is to have a compact, performant and easy to use code suitable for integration in simulators of multiphase flow.
 
@@ -38,15 +41,17 @@ If you want to use the former features, please know that they might be subject t
 * The module currently only supports cubic equations of state. These are limited in accuracy for longer chains of molecules without extensive tuning for a specific mixture.
 * Flash is limited to two-phase pressure-temperature (pT) flash.
 * The flash algorithms are limited to the basics - there are many strategies that could be implemented
-* Peng-Robinson is the only equation of state that has been thoroughly validated.
+* Cubic equations remain approximations whose practical accuracy depends on
+  component data and fitted binary-interaction coefficients. See
+  [EOS reference validation](@ref) for implementation-level comparisons.
 
 # Other packages
 Julia packages:
-* [Clapeyron.jl](https://github.com/ypaul21/Clapeyron.jl) supports more advanced equations of state in addition to the cubics (SAFT-type and empirical EOS) and has a much larger API for thermodynamical properties. At the time of writing, this package does not support a full flash.
+* [Clapeyron.jl](https://github.com/ypaul21/Clapeyron.jl) supports more advanced equations of state in addition to the cubics (SAFT-type and empirical EOS) and has a much larger API for thermodynamical properties. It is also used by this package's independent [EOS reference validation](@ref) suite.
 
 Julia interfaces to other useful packages:
 * [PyThermo.jl](https://github.com/stillyslalom/PyThermo.jl) is an interface to the [Thermo](https://pypi.org/project/thermo/) package.
 * [CoolProp.jl](https://github.com/CoolProp/CoolProp.jl) is an interface to the [CoolProp](http://www.coolprop.org/) library.
 
 # Contact
-You can use the [Github webpage](https://github.com/moyner/MultiComponentFlash.jl) or drop me a line at [Olav Møyner](mailto:olav.moyner@gmail.no).
+You can use the [Github webpage](https://github.com/moyner/MultiComponentFlash.jl) or drop me a line at [Olav Møyner](mailto:olav.moyner@sintef.no).

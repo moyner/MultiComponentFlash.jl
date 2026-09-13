@@ -86,9 +86,11 @@ between kernel work items.
 
 We create a three-component mixture and flash for a range of pressure and temperature conditions:
 
-```julia
-using MultiComponentFlash, Plots
-ns = 1000
+```@example phase-diagram
+using MultiComponentFlash, CairoMakie
+CairoMakie.activate!(type = "svg")
+
+ns = 100
 ubar = 1e5
 # Pressure range
 p0 = 1*ubar
@@ -110,20 +112,29 @@ cond = (p = p0, T = T0, z = z)
 m = SSIFlash()
 S = flash_storage(eos, cond, method = m)
 K = initial_guess_K(eos, cond)
-data = zeros(ns, ns)
-for ip = 1:ns
-    for iT = 1:ns
-        c = (p = p[ip], T = T[iT], z = z)
-        data[ip, iT] = flash_2ph!(S, K, eos, c, NaN, method = m)
+data = zeros(length(T), length(p))
+for (iT, temperature) in pairs(T)
+    for (ip, pressure) in pairs(p)
+        c = (p = pressure, T = temperature, z = z)
+        V = flash_2ph!(S, K, eos, c, NaN, method = m)
+        data[iT, ip] = V
     end
 end
 
-contour(p./ubar, T .- 273.15, data, levels = 10, fill=(true,cgrad(:hot)))
-ylabel!("Pressure [Bar]")
-xlabel!("T [°Celsius]")
+fig = Figure(size = (760, 480))
+ax = Axis(fig[1, 1];
+    xlabel = "Temperature [°C]",
+    ylabel = "Pressure [bar]",
+    title = "Vapor fraction")
+contours = contourf!(ax, T .- 273.15, p./ubar, data;
+    levels = range(0.0, 1.0, length = 11), colormap = :hot)
+Colorbar(fig[1, 2], contours; label = "Vapor mole fraction")
+fig
 ```
 
-![Phase diagram](../assets/phase_diagram_simple.png)
+The colored region is the two-phase envelope. Unfilled states are stable
+single-phase conditions, for which the two-phase solver reports no intermediate
+vapor fraction.
 
 ### PVT table generation
 
@@ -131,4 +142,12 @@ There is experimental support for generating simulator input blackoil tables (e.
 
 ```@docs
 generate_pvt_tables
+```
+
+### Coupling to simulators and other utilities
+
+```@docs
+cubic_benchmark
+FlashedMixture2Phase
+FlashedPhase
 ```

@@ -24,7 +24,7 @@ function single_phase_label(mixture::MultiComponentMixture, cond)
     return Float64(cond.T > T_c)
 end
 
-single_phase_label(eos::AbstractEOS,cond) = single_phase_label(eos.mixture,cond)
+single_phase_label(eos::AbstractEOS, cond) = single_phase_label(eos.mixture,cond)
 
 """
     lbc_viscosity(eos, p, T, ph; <keyword arguments>)
