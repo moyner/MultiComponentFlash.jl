@@ -15,7 +15,7 @@ function flash_storage(eos::GenericCubicEOS, cond, method, config::StaticConfig;
 end
 
 """
-    V, K = flash_2ph_immutable(eos, c[, storage]; <keyword arguments>)
+    V, K = flash_2ph_immutable(eos, c[, storage, V0]; <keyword arguments>)
 
 Run the immutable, accelerator-friendly two-phase flash implementation.
 `c.z` must be an `SVector`; `K` is returned as an `SVector` and `V` is the
@@ -31,14 +31,15 @@ and composition bounds as the mutable simulator integration.
 The immutable path currently supports `SSIFlash` and generic cubic EOS values
 converted with [`make_eos_immutable`](@ref).
 """
-@inline function flash_2ph_immutable(eos, c;
+@inline function flash_2ph_immutable(eos, c, V0 = NaN;
         method = SSIFlash(),
         stability_storage = nothing,
         stability_bypass::Bool = !isnothing(stability_storage),
         return_stability::Bool = false,
         kwarg...)
     return flash_2ph_immutable(eos, c,
-        flash_storage(eos, c; method = method, static = true);
+        flash_storage(eos, c; method = method, static = true),
+        V0;
         method = method,
         stability_storage = stability_storage,
         stability_bypass = stability_bypass,
@@ -46,7 +47,7 @@ converted with [`make_eos_immutable`](@ref).
         kwarg...)
 end
 
-@inline function flash_2ph_immutable(eos, c, storage::StaticConfig;
+@inline function flash_2ph_immutable(eos, c, storage::StaticConfig, V0 = NaN;
         method = SSIFlash(),
         stability_storage = nothing,
         stability_bypass::Bool = !isnothing(stability_storage),
@@ -54,8 +55,9 @@ end
         kwarg...)
     c.z isa SVector || throw(ArgumentError(
         "flash_2ph_immutable requires c.z to be an SVector"))
-    V, K, report = flash_2ph!(storage, initial_guess_K(eos, c, storage), eos, c,
-        NaN; method = method, extra_out = true,
+    V, K, report = flash_2ph!(storage, initial_guess_K(eos, c, storage), eos, c, V0;
+        method = method,
+        extra_out = true,
         stability_storage = stability_storage,
         stability_bypass = stability_bypass || return_stability,
         kwarg...)
