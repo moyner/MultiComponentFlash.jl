@@ -271,10 +271,8 @@ end
         residual = max(residual, abs(one(F) - ratios[i]))
     end
     K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
-    V_next = solve_rachford_rice(K_next, z, V)
-    if !negative_flash
-        V_next = clamp(V_next, zero(V_next), one(V_next))
-    end
+    V_next = negative_flash ? solve_rachford_rice(K_next, z, V) :
+        physical_vapor_fraction(K_next, z, V)
     return V_next, K_next, residual
 end
 
@@ -336,12 +334,13 @@ end
     else
         iteration = 1
         if isnan(V) || negative_flash
-            V = solve_rachford_rice(K, z, NaN)
+            V = negative_flash ? solve_rachford_rice(K, z, NaN) :
+                physical_vapor_fraction(K, z, NaN)
         end
         while isfinite(V)
             V, K, residual = static_ssi(K, cond.p, cond.T, z, V, eos, forces, negative_flash)
             # A RR root outside the positive-composition window is not a
-            # negative flash. Stop before evaluating EOS fugacities at a pole.
+            # negative flash. Ordinary flashes use a single-phase boundary.
             isfinite(V) || break
             residual_converged = residual <= tolerance
             max_its_reached = iteration == maxiter

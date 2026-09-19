@@ -155,6 +155,35 @@ end
     @test !bad_host_report.converged
 end
 
+@testset "Single-phase RR iterates in ordinary flashes" begin
+    # This K iterate was observed while sweeping the simple phase diagram.
+    # It has no negative-flash root, but an ordinary flash must remain on the
+    # vapor boundary and continue rather than turn V into NaN.
+    K_vapor = @SVector [1.2749359332142336, 1.0540125780535836,
+        1.0710895839941093]
+    z = @SVector [0.3, 0.1, 0.6]
+    for (K_test, z_test) in ((K_vapor, z),
+            (collect(K_vapor), collect(z)))
+        @test isnan(solve_rachford_rice(K_test, z_test))
+        @test MultiComponentFlash.physical_vapor_fraction(K_test, z_test) == 1
+        @test MultiComponentFlash.physical_vapor_fraction(inv.(K_test), z_test) == 0
+    end
+
+    eos, _ = cubic_benchmark("simple")
+    cond = (p = 364529.05811623245, T = 274.15, z = collect(z))
+    V, _, report = flash_2ph(eos, cond, collect(K_vapor), 0.5;
+        extra_out = true)
+    @test report.converged
+    @test 0 <= V <= 1
+
+    static_cond = (p = cond.p, T = cond.T, z = z)
+    V_static, _, static_report = flash_2ph!(MultiComponentFlash.StaticConfig(),
+        K_vapor, make_eos_immutable(eos), static_cond, 0.5;
+        extra_out = true)
+    @test static_report.converged
+    @test V_static ≈ V
+end
+
 @testset "Static accelerator path" begin
     host_eos = get_test_eos()
     eos = make_eos_immutable(host_eos)

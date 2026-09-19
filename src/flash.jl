@@ -131,15 +131,27 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
         i = 0
     else
         i = 1
+        # if isnan(V) || negative_flash
+        #     V = negative_flash ? solve_rachford_rice(K, z, NaN) :
+        #         physical_vapor_fraction(K, z, NaN)
+        # end
         if isnan(V) || negative_flash
-            V = solve_rachford_rice(K, z, NaN)
+            if negative_flash
+                V = solve_rachford_rice(K, z, NaN)
+            else
+                V = physical_vapor_fraction(K, z, NaN)
+            end
+            V = negative_flash ? solve_rachford_rice(K, z, NaN) :
+                physical_vapor_fraction(K, z, NaN)
         end
         while isfinite(V)
             V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i,
                 negative_flash)
             # A negative flash has no admissible split if the updated K-values
-            # cease to straddle one. Do not evaluate fugacities at a RR pole.
-            isfinite(V) || break
+            # cease to straddle one. An ordinary flash instead uses V = 0 or 1.
+            if !isfinite(V)
+                break
+            end
             residual_converged = ϵ ≤ tolerance
             if residual_converged || i == maxiter
                 converged = residual_converged &&
@@ -337,10 +349,8 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces,
         K[c] *= r
         ϵ = max(ϵ, abs(1-r))
     end
-    V = solve_rachford_rice(K, z, V)
-    if !negative_flash
-        V = clamp(V, zero(V), one(V))
-    end
+    V = negative_flash ? solve_rachford_rice(K, z, V) :
+        physical_vapor_fraction(K, z, V)
     return (V, ϵ)::Tuple{F, F}
 end
 

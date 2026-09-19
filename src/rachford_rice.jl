@@ -47,6 +47,30 @@ function solve_rachford_rice(K, z, V = NaN; tol = 1e-12, maxiter = 1000,
         tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
 end
 
+@inline function physical_vapor_fraction(K, z, V = NaN)
+    # In an ordinary flash, a single-phase RR iterate belongs on the nearest
+    # boundary of [0, 1]. Only negative flashes require an extrapolated root
+    # with two positive phase compositions. RR decreases on [0, 1] for K > 0.
+    r_liquid = r_vapor = zero(K[1]*z[1])
+    @inbounds for i in eachindex(z)
+        K_i, z_i = K[i], z[i]
+        if !isfinite(K_i) || K_i <= zero(K_i) ||
+                !isfinite(z_i) || z_i < zero(z_i)
+            return oftype(r_liquid, NaN)
+        end
+        delta_K = K_i - one(K_i)
+        r_liquid += z_i*delta_K
+        r_vapor += z_i*delta_K/K_i
+    end
+    if r_liquid <= zero(r_liquid)
+        return zero(r_liquid)
+    elseif r_vapor >= zero(r_vapor)
+        return one(r_vapor)
+    end
+    # Opposite endpoint signs imply a unique physical root in (0, 1).
+    return solve_rachford_rice(K, z, V)
+end
+
 @inline function rachford_rice_balance_error(V, residual)
     # RR = sum(y) - sum(x). For normalized z, the two normalization errors
     # are -V*RR and (1 - V)*RR. A small unscaled RR residual is insufficient
