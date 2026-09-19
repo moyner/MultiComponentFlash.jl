@@ -271,6 +271,37 @@ end
         @test isnan(V_nearby)
         @test all(isfinite, K_nearby)
         @test nearby_stability.bypassed
+        _, _, forced_test = flash_2ph_immutable(eos, nearby;
+            stability_storage = flash_stability,
+            stability_bypass = false,
+            return_stability = true)
+        @test !forced_test.bypassed
+        @test forced_test.storage.reference == nearby
+
+        # A trial that hits its iteration limit has not found a trivial
+        # stability minimum, even if the old implementation assumed stability.
+        unfinished = stability_2ph_immutable(eos, c; maxiter = 1)
+        @test !unfinished.stable
+        @test isnan(unfinished.storage.critical_distance)
+        near_unstable = (p = 1.01e6, T = c.T, z = c.z)
+        @test !stability_2ph_immutable(eos, near_unstable, unfinished).bypassed
+        @test !stability_2ph_immutable(eos, near_unstable).stable
+
+        # A one-sided test may be useful, but cannot certify a reference for
+        # bypassing both trial phases at a later condition.
+        vapor_unstable = (p = 1e6, T = 200.0, z = c.z)
+        one_sided = stability_2ph_immutable(eos, vapor_unstable;
+            check_vapor = false)
+        @test one_sided.stable
+        @test isnan(one_sided.storage.critical_distance)
+        skipped_liquid = stability_2ph_immutable(eos, stable_cond;
+            check_liquid = false)
+        @test skipped_liquid.stable
+        @test isnan(skipped_liquid.storage.critical_distance)
+        near_vapor_unstable = (p = 1.01e6, T = 200.0, z = c.z)
+        @test !stability_2ph_immutable(eos, near_vapor_unstable,
+            one_sided).bypassed
+        @test !stability_2ph_immutable(eos, near_vapor_unstable).stable
         @test_throws ArgumentError stability_2ph_immutable(eos, nearby,
             stability.storage; bypass_tolerance = 0.0)
     end

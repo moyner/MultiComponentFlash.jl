@@ -30,6 +30,8 @@ Set `return_stability=true` to additionally return a
 `stability_storage` on the next call to enable the Michelsen bypass. The
 default `bypass_tolerance=10` uses the same conservative pressure, temperature
 and composition bounds as the mutable simulator integration.
+Set `stability_bypass=false` to force a fresh stability test even when storage
+is supplied; `return_stability=true` still records a new reference if eligible.
 
 The immutable path currently supports `SSIFlash` and generic cubic EOS values
 converted with [`make_eos_immutable`](@ref).
@@ -62,7 +64,8 @@ end
         method = method,
         extra_out = true,
         stability_storage = stability_storage,
-        stability_bypass = stability_bypass || return_stability,
+        stability_bypass = stability_bypass,
+        update_bypass = stability_bypass || return_stability,
         kwarg...)
     return immutable_flash_output(V, K, report.stability_result,
         Val(return_stability))
@@ -171,9 +174,10 @@ end
         return false
     end
     reference = storage.reference
-    return maximum(abs, reference.z - cond.z) < b/tolerance &&
+    stable = maximum(abs, reference.z - cond.z) < b/tolerance &&
         abs(reference.p - cond.p) < b*abs(cond.p)/tolerance &&
         abs(reference.T - cond.T) < b*tolerance
+    return stable
 end
 
 @inline static_minimum_eigenvalue(B::SMatrix) =
@@ -301,6 +305,7 @@ end
         z_min = MINIMUM_COMPOSITION,
         stability_storage = nothing,
         stability_bypass::Bool = !isnothing(stability_storage),
+        update_bypass::Bool = stability_bypass,
         bypass_tolerance::Real = 10.0,
         kwarg...
     ) where {E, R, N}
@@ -315,7 +320,8 @@ end
     if single_phase_init
         stability_result = static_stability_2ph(K, eos, cond, forces;
             storage = stability_storage_value(stability_storage),
-            update_bypass = stability_bypass,
+            use_bypass = stability_bypass,
+            update_bypass = update_bypass,
             bypass_tolerance = bypass_tolerance,
             maxiter = maxiter,
             kwarg...)
@@ -394,6 +400,7 @@ end
         maxiter = 1000
     ) where {N, F}
     trivial = false
+    converged = false
     S = one(F)
     iter = 0
     xy = zero(SVector{N, F})
@@ -420,12 +427,13 @@ end
         converged = R_norm < tol_equil
         if trivial || converged
             break
-        elseif iter == maxiter
-            trivial = true
+        elseif iter >= maxiter
+            # An unfinished trial phase is not evidence of a trivial minimum.
+            # In particular, it must not create a single-phase bypass cache.
             break
         end
     end
-    stable = trivial || S <= one(F) + tol_sat
+    stable = trivial || (converged && S <= one(F) + tol_sat)
     return stable, trivial, iter, K, xy
 end
 
@@ -434,10 +442,11 @@ end
         check_liquid::Bool = true,
         storage = nothing,
         update_bypass::Bool = false,
+        use_bypass::Bool = update_bypass,
         bypass_tolerance::Real = 10.0,
         kwarg...
     ) where {N, F}
-    if update_bypass && !isnothing(storage) &&
+    if use_bypass && !isnothing(storage) &&
             stability_bypass_available(storage, cond;
                 tolerance = bypass_tolerance)
         report = StabilityReport(true, true, true, true)
@@ -464,8 +473,10 @@ end
     report = StabilityReport(stable_liquid, trivial_liquid,
         stable_vapor, trivial_vapor)
     K_out = report.stable ? K_liquid : static_divide(y, x)
-    if update_bypass && report.stable && report.liquid.trivial &&
-            report.vapor.trivial
+    # Only a complete, converged two-sided test can establish a new reference.
+    # Skipped trial phases are reported as stable above, but prove no such thing.
+    if update_bypass && check_liquid && check_vapor && report.stable &&
+            report.liquid.trivial && report.vapor.trivial
         critical_distance = static_michelsen_critical_point_measure(
             eos, cond.p, cond.T, cond.z)
         next_storage = StaticStabilityStorage(cond, critical_distance)
