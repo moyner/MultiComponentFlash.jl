@@ -17,9 +17,14 @@ Two outcomes are possible:
 
 # Arguments
 - `eos`: the equation-of-state to be used for the flash
-- `c`: conditions to flash the mixture at on the form `(p = 10e5, T = 303.15, z = [0.5, 0.3, 0.2])`
-- `K`: optionally a buffer of length `number_of_components(eos)` used to hold K-values. Modified in-place.
-- `V`: optionally the initial guess for V. If this value is not `NaN`, the stability check will be skipped.
+- `c`: conditions to flash the mixture at on the form
+       `c = (p = 10e5, T = 303.15, z = [0.5, 0.3, 0.2])`
+- `K`: optionally a buffer of length `number_of_components(eos)` used to hold
+  K-values. Modified in-place.
+- `V=NaN`: optionally the initial guess for V. If this value is a finite value
+  other than `NaN`, the stability check will be skipped. Pass `Inf` to perform a
+  negative flash: initialize `V` from Rachford-Rice and allow solutions outside
+  `[0, 1]`.
 
 # Keyword arguments
 - `method = SSIFlash()`: Flash method to use. Can be `SSIFlash()`, `NewtonFlash()` or `SSINewtonFlash()`.
@@ -103,6 +108,7 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
     if update_forces
         force_coefficients!(forces, eos, c)
     end
+    negative_flash = isinf(V)
     single_phase_init = isnan(V) || V == 1.0 || V == 0.0
     if single_phase_init
         stable, stability_report = stability_2ph!(storage, K, eos, c, config;
@@ -125,13 +131,19 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
         i = 0
     else
         i = 1
-        if isnan(V)
-            V = solve_rachford_rice(K, z, V)
+        if isnan(V) || negative_flash
+            V = solve_rachford_rice(K, z, NaN)
         end
-        while true
-            V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i)
-            converged = ϵ ≤ tolerance
-            if converged || i == maxiter
+        while isfinite(V)
+            V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i,
+                negative_flash)
+            # A negative flash has no admissible split if the updated K-values
+            # cease to straddle one. Do not evaluate fugacities at a RR pole.
+            isfinite(V) || break
+            residual_converged = ϵ ≤ tolerance
+            if residual_converged || i == maxiter
+                converged = residual_converged &&
+                    (!negative_flash || valid_negative_flash_solution(V, K, z))
                 if print_output(config) && verbose
                     @info "Flash done in $i iterations." V K converged
                 end
@@ -145,6 +157,9 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
                 break
             end
             i += 1
+        end
+        if !isfinite(V) && print_output(config) && check && !negative_flash
+            error("No admissible Rachford-Rice root for flash")
         end
     end
     return (V, K, (its = i, converged = converged, stability = stability_report))
@@ -280,14 +295,30 @@ function update_value(v::T, newv::Real) where T<:ForwardDiff.Dual
     return T(newv, P)
 end
 
-function flash_update!(K, storage, type::SSIFlash, eos, cond, forces, V, iteration)
+function flash_update!(K, storage, type::SSIFlash, eos, cond, forces, V,
+        iteration, negative_flash::Bool = false)
     z = cond.z
     x, y = storage.x, storage.y
     p, T = cond.p, cond.T
-    return ssi!(K, p, T, x, y, z, V, eos, forces)
+    return ssi!(K, p, T, x, y, z, V, eos, forces, negative_flash)
 end
 
-function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
+@inline function valid_negative_flash_solution(V, K, z)
+    # The trivial K ≈ 1 fixed point has an indeterminate vapor fraction.
+    isfinite(V) || return false
+    V_lo, V_hi = positive_rachford_rice_bounds(K, z)
+    V_lo < V < V_hi || return false
+    nontrivial = false
+    @inbounds for K_i in K
+        isfinite(K_i) && K_i > zero(K_i) || return false
+        nontrivial |= abs(K_i - one(K_i)) > 1e-6
+    end
+    return nontrivial &&
+        rachford_rice_balance_error(V, objectiveRR(V, K, z)) <= 1e-8
+end
+
+function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces,
+        negative_flash::Bool = false) where {F<:Real}
     # Initialize conditions for vapor and liquid phases based on K-values
     x = liquid_mole_fraction!(x, z, K, V)
     y = vapor_mole_fraction!(y, x, K)
@@ -307,14 +338,17 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces) where {F<:Real}
         ϵ = max(ϵ, abs(1-r))
     end
     V = solve_rachford_rice(K, z, V)
-    V = clamp(V, zero(V), one(V))
+    if !negative_flash
+        V = clamp(V, zero(V), one(V))
+    end
     return (V, ϵ)::Tuple{F, F}
 end
 
 cap_z(z) = min(max(z, MINIMUM_COMPOSITION), one(z))
 cap_VL(v) = min(max(v, MINIMUM_COMPOSITION), 1 - MINIMUM_COMPOSITION)
 
-function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iteration)
+function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V,
+        iteration, negative_flash::Bool = false)
     x, y = storage.x, storage.y
     z = cond.z
     x = liquid_mole_fraction!(x, z, K, V)
@@ -322,11 +356,17 @@ function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V, iter
     # Newton part
     Δ = update_and_solve!(storage, eos, cond, forces, x, y, V)
     newton_dampen!(type.dMax, Δ)
-    V, ϵ = update_newton_from_increment!(K, x, y, V, Δ)
+    V, ϵ = update_newton_from_increment!(K, x, y, V, Δ, negative_flash)
+    if negative_flash
+        # The Newton composition update is clipped to positive values. Restore
+        # material balance with the RR root in the positive-composition window.
+        V = solve_rachford_rice(K, z, V)
+    end
     return (V, ϵ)
 end
 
-function update_newton_from_increment!(K, x, y, V, Δ)
+function update_newton_from_increment!(K, x, y, V, Δ,
+        negative_flash::Bool = false)
     ϵ = zero(eltype(K))
     n = length(x)
     @inbounds for i in 1:n
@@ -338,7 +378,10 @@ function update_newton_from_increment!(K, x, y, V, Δ)
         # Assign new value, overwriting old
         K[i] = K_next
     end
-    V = cap_VL(V - Δ[end])
+    V -= Δ[end]
+    if !negative_flash
+        V = cap_VL(V)
+    end
     return (V, ϵ)
 end
 
@@ -406,11 +449,14 @@ function newton_dampen!(dMax, Δ)
     @. Δ *= ω
 end
 
-function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V, iteration)
+function flash_update!(K, storage, type::SSINewtonFlash, eos, cond, forces, V,
+        iteration, negative_flash::Bool = false)
     if iteration >= type.swap_iter
-        flash_update!(K, storage, NewtonFlash(type.dMax), eos, cond, forces, V, iteration)
+        flash_update!(K, storage, NewtonFlash(type.dMax), eos, cond, forces,
+            V, iteration, negative_flash)
     else
-        flash_update!(K, storage, SSIFlash(), eos, cond, forces, V, iteration)
+        flash_update!(K, storage, SSIFlash(), eos, cond, forces, V, iteration,
+            negative_flash)
     end
 end
 
@@ -479,7 +525,9 @@ Base.@propagate_inbounds ∂(D, i) = D.partials[i]
 
 Compute liquid mole fractions from overall mole fraction `z`, vector with one
 K-value per component as`K` and vapor fraction `V`."""
-@inline liquid_mole_fraction(z, K, V) = z/(1 - V + V*K)
+# This form avoids subtracting two large, nearly equal terms when |V| is
+# large in a negative flash and K is close to one.
+@inline liquid_mole_fraction(z, K, V) = z/muladd(V, K - 1, one(V))
 
 """
     y = vapor_mole_fraction(z, K, V)
@@ -494,7 +542,10 @@ Compute vapor mole fractions from liquid mole fraction `x` and K-values `K`.
 """
 @inline vapor_mole_fraction(x, K) = x*K
 
-liquid_mole_fraction!(x, z, K, V) = begin x .= z ./ (1 .- V .+ V .* K);x end
+liquid_mole_fraction!(x, z, K, V) = begin
+    @. x = z/muladd(V, K - 1, one(V))
+    x
+end
 vapor_mole_fraction!(y, x, K) = begin y .= x .* K;y end
 function vapor_mole_fraction!(y,z, K, V) 
     x = y
