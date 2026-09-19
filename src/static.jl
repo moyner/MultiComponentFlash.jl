@@ -218,37 +218,54 @@ end
     return static_minimum_eigenvalue(B)
 end
 
-@inline function solve_rachford_rice(K::StaticVector{2}, z::StaticVector{2}, V = NaN)
+@inline function solve_rachford_rice_unconstrained(
+        K::StaticVector{2}, z::StaticVector{2}, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
     V_lo, V_hi = positive_rachford_rice_bounds(K, z)
     V_lo < V_hi || return oftype(K[1], NaN)
-    root = rachford_rice_analytic_2(K, z, V_lo, V_hi)
-    if isfinite(root) &&
-            rachford_rice_balance_error(root, objectiveRR(root, K, z)) <= 1e-12
-        return root
+    if analytical
+        root = rachford_rice_analytic_2(K, z, V_lo, V_hi)
+        if isfinite(root) &&
+                rachford_rice_balance_error(root, objectiveRR(root, K, z)) <= tol
+            return root
+        end
     end
-    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi)
+    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
 end
 
-@inline function solve_rachford_rice(K::StaticVector{3}, z::StaticVector{3}, V = NaN)
+@inline function solve_rachford_rice_unconstrained(
+        K::StaticVector{3}, z::StaticVector{3}, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
     V_lo, V_hi = positive_rachford_rice_bounds(K, z)
     V_lo < V_hi || return oftype(K[1], NaN)
-    root = rachford_rice_analytic_3(K, z, V_lo, V_hi)
-    if isfinite(root) &&
-            rachford_rice_balance_error(root, objectiveRR(root, K, z)) <= 1e-12
-        return root
+    if analytical
+        root = rachford_rice_analytic_3(K, z, V_lo, V_hi)
+        if isfinite(root) &&
+                rachford_rice_balance_error(root, objectiveRR(root, K, z)) <= tol
+            return root
+        end
     end
-    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi)
+    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
 end
 
-@inline solve_rachford_rice(K::StaticVector, z::StaticVector, V = NaN) =
-    solve_rachford_rice_static_iterative(K, z, V)
+@inline function solve_rachford_rice_unconstrained(
+        K::StaticVector, z::StaticVector, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
+    return solve_rachford_rice_static_iterative(K, z, V;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
+end
 
 @inline function solve_rachford_rice_static_iterative(K, z, V;
-        tol = 1e-12, maxiter = 1000)
+        tol = 1e-12, maxiter = 1000, ad = false, verbose = false)
     V_lo, V_hi = positive_rachford_rice_bounds(K, z)
     V_lo < V_hi || return oftype(K[1], NaN)
     return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
-        tol = tol, maxiter = maxiter)
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
 end
 
 @generated function static_fugacities(eos::GenericCubicEOS{E, R, N}, cond, forces,
@@ -275,8 +292,11 @@ end
         residual = max(residual, abs(one(F) - ratios[i]))
     end
     K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
-    V_next = negative_flash ? solve_rachford_rice(K_next, z, V) :
-        physical_vapor_fraction(K_next, z, V)
+    if negative_flash
+        V_next = solve_rachford_rice_unconstrained(K_next, z, V)
+    else
+        V_next = solve_rachford_rice(K_next, z, V)
+    end
     return V_next, K_next, residual
 end
 
@@ -340,8 +360,11 @@ end
     else
         iteration = 1
         if isnan(V) || negative_flash
-            V = negative_flash ? solve_rachford_rice(K, z, NaN) :
-                physical_vapor_fraction(K, z, NaN)
+            if negative_flash
+                V = solve_rachford_rice_unconstrained(K, z, NaN)
+            else
+                V = solve_rachford_rice(K, z, NaN)
+            end
         end
         while isfinite(V)
             V, K, residual = static_ssi(K, cond.p, cond.T, z, V, eos, forces, negative_flash)

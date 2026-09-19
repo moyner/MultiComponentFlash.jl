@@ -1,8 +1,48 @@
 """
     solve_rachford_rice(K, z, [V]; <keyword arguments>)
 
-Compute vapor mole fraction `V` for given equilibrium constants `K` and mole fractions `z`.
-`V` may lie outside `[0, 1]` for a negative flash, but the corresponding phase
+Compute the physical vapor mole fraction for equilibrium constants `K` and
+overall mole fractions `z`. Return `0` for liquid-only conditions and `1` for
+vapor-only conditions. Use [`solve_rachford_rice_unconstrained`](@ref) when a
+negative flash requires a root outside `[0, 1]`.
+
+`V` is an optional initial guess for an interior two-phase root. Solver keyword
+arguments are forwarded to `solve_rachford_rice_unconstrained` in that case.
+"""
+@inline function solve_rachford_rice(K, z, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
+    # RR decreases on [0, 1] for positive K. Its endpoint signs distinguish
+    # a physical split from a single-phase condition.
+    r_liquid = r_vapor = zero(K[1]*z[1])
+    @inbounds for i in eachindex(z)
+        K_i, z_i = K[i], z[i]
+        if !isfinite(K_i) || K_i <= zero(K_i) ||
+                !isfinite(z_i) || z_i < zero(z_i)
+            return oftype(r_liquid, NaN)
+        end
+        delta_K = K_i - one(K_i)
+        r_liquid += z_i*delta_K
+        r_vapor += z_i*delta_K/K_i
+    end
+    if r_liquid <= zero(r_liquid)
+        return zero(r_liquid)
+    elseif r_vapor >= zero(r_vapor)
+        return one(r_vapor)
+    end
+    return solve_rachford_rice_unconstrained(K, z, V;
+        tol = tol, maxiter = maxiter, ad = ad, analytical = analytical,
+        verbose = verbose)
+end
+
+# Retain the previous internal spelling for callers that used it directly.
+@inline physical_vapor_fraction(K, z, V = NaN) = solve_rachford_rice(K, z, V)
+
+"""
+    solve_rachford_rice_unconstrained(K, z, [V]; <keyword arguments>)
+
+Compute a negative-flash vapor fraction for given equilibrium constants `K`
+and mole fractions `z`. The root may lie outside `[0, 1]`, but both phase
 compositions must remain nonnegative. Return `NaN` when there is no such root.
 
 # Arguments
@@ -19,11 +59,11 @@ compositions must remain nonnegative. Return `NaN` when there is no such root.
 
 # Examples
 ```julia-repl
-julia> solve_rachford_rice([0.5, 1.5], [0.3, 0.7])
+julia> solve_rachford_rice_unconstrained([0.5, 1.5], [0.3, 0.7])
 0.8000000000000002
 ```
 """
-function solve_rachford_rice(K, z, V = NaN; tol = 1e-12, maxiter = 1000,
+function solve_rachford_rice_unconstrained(K, z, V = NaN; tol = 1e-12, maxiter = 1000,
         ad = false, analytical = true, verbose = false)
     V_lo, V_hi = positive_rachford_rice_bounds(K, z)
     V_lo < V_hi || return oftype(K[1], NaN)
@@ -45,30 +85,6 @@ function solve_rachford_rice(K, z, V = NaN; tol = 1e-12, maxiter = 1000,
     end
     return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
         tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
-end
-
-@inline function physical_vapor_fraction(K, z, V = NaN)
-    # In an ordinary flash, a single-phase RR iterate belongs on the nearest
-    # boundary of [0, 1]. Only negative flashes require an extrapolated root
-    # with two positive phase compositions. RR decreases on [0, 1] for K > 0.
-    r_liquid = r_vapor = zero(K[1]*z[1])
-    @inbounds for i in eachindex(z)
-        K_i, z_i = K[i], z[i]
-        if !isfinite(K_i) || K_i <= zero(K_i) ||
-                !isfinite(z_i) || z_i < zero(z_i)
-            return oftype(r_liquid, NaN)
-        end
-        delta_K = K_i - one(K_i)
-        r_liquid += z_i*delta_K
-        r_vapor += z_i*delta_K/K_i
-    end
-    if r_liquid <= zero(r_liquid)
-        return zero(r_liquid)
-    elseif r_vapor >= zero(r_vapor)
-        return one(r_vapor)
-    end
-    # Opposite endpoint signs imply a unique physical root in (0, 1).
-    return solve_rachford_rice(K, z, V)
 end
 
 @inline function rachford_rice_balance_error(V, residual)

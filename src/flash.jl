@@ -131,18 +131,12 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
         i = 0
     else
         i = 1
-        # if isnan(V) || negative_flash
-        #     V = negative_flash ? solve_rachford_rice(K, z, NaN) :
-        #         physical_vapor_fraction(K, z, NaN)
-        # end
         if isnan(V) || negative_flash
             if negative_flash
-                V = solve_rachford_rice(K, z, NaN)
+                V = solve_rachford_rice_unconstrained(K, z, NaN)
             else
-                V = physical_vapor_fraction(K, z, NaN)
+                V = solve_rachford_rice(K, z, NaN)
             end
-            V = negative_flash ? solve_rachford_rice(K, z, NaN) :
-                physical_vapor_fraction(K, z, NaN)
         end
         while isfinite(V)
             V, ϵ = flash_update!(K, storage, method, eos, c, forces, V, i,
@@ -349,8 +343,11 @@ function ssi!(K, p::F, T::F, x, y, z, V::F, eos, forces,
         K[c] *= r
         ϵ = max(ϵ, abs(1-r))
     end
-    V = negative_flash ? solve_rachford_rice(K, z, V) :
-        physical_vapor_fraction(K, z, V)
+    if negative_flash
+        V = solve_rachford_rice_unconstrained(K, z, V)
+    else
+        V = solve_rachford_rice(K, z, V)
+    end
     return (V, ϵ)::Tuple{F, F}
 end
 
@@ -370,7 +367,7 @@ function flash_update!(K, storage, type::NewtonFlash, eos, cond, forces, V,
     if negative_flash
         # The Newton composition update is clipped to positive values. Restore
         # material balance with the RR root in the positive-composition window.
-        V = solve_rachford_rice(K, z, V)
+        V = solve_rachford_rice_unconstrained(K, z, V)
     end
     return (V, ϵ)
 end

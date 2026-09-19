@@ -96,10 +96,10 @@ end
 
     K4 = @SVector [0.2, 0.4, 2.0, 4.0]
     z4 = @SVector [0.25, 0.25, 0.25, 0.25]
-    @test solve_rachford_rice(K4, z4, Inf) ≈
-        solve_rachford_rice(K4, z4, NaN)
-    @test solve_rachford_rice(collect(K4), collect(z4), Inf) ≈
-        solve_rachford_rice(collect(K4), collect(z4), NaN)
+    @test solve_rachford_rice_unconstrained(K4, z4, Inf) ≈
+        solve_rachford_rice_unconstrained(K4, z4, NaN)
+    @test solve_rachford_rice_unconstrained(collect(K4), collect(z4), Inf) ≈
+        solve_rachford_rice_unconstrained(collect(K4), collect(z4), NaN)
 
     # A guess at a pole must be reinitialized inside the positive-composition
     # window, even when the correct negative-flash root lies outside [0, 1].
@@ -108,10 +108,17 @@ end
              (@SVector([0.05, 0.05, 0.2, 0.7]), false))
         for (K_test, z_test) in ((K4, z_negative),
                 (collect(K4), collect(z_negative)))
-            V_expected = solve_rachford_rice(K_test, z_test)
-            @test below_zero ? V_expected < 0 : V_expected > 1
+            V_expected = solve_rachford_rice_unconstrained(K_test, z_test)
+            if below_zero
+                @test V_expected < 0
+                @test solve_rachford_rice(K_test, z_test) == 0
+            else
+                @test V_expected > 1
+                @test solve_rachford_rice(K_test, z_test) == 1
+            end
             V_pole = 1/(1 - maximum(K_test))
-            @test solve_rachford_rice(K_test, z_test, V_pole) ≈ V_expected
+            @test solve_rachford_rice_unconstrained(K_test, z_test,
+                V_pole) ≈ V_expected
         end
     end
 
@@ -123,9 +130,12 @@ end
         23.930790867112876, 63.42734611565452]
     z_runaway = @SVector [0.635, 0.115, 0.05, 0.1, 0.075, 0.025]
     V_pole = -0.016018621040647378
-    @test isnan(solve_rachford_rice(K_runaway, z_runaway, V_pole))
-    @test isnan(solve_rachford_rice(collect(K_runaway), collect(z_runaway), V_pole))
-    @test isnan(solve_rachford_rice(K_runaway, z_runaway))
+    @test isnan(solve_rachford_rice_unconstrained(K_runaway,
+        z_runaway, V_pole))
+    @test isnan(solve_rachford_rice_unconstrained(
+        collect(K_runaway), collect(z_runaway), V_pole))
+    @test isnan(solve_rachford_rice_unconstrained(K_runaway, z_runaway))
+    @test solve_rachford_rice(K_runaway, z_runaway) == 1
 
     # With K almost equal to one, a valid negative flash can have |V| >> 1.
     # The RR stopping test and composition formula must both preserve the
@@ -134,7 +144,7 @@ end
     z_near = @SVector [0.01, 0.01, 0.49, 0.49]
     for (K_test, z_test) in ((K_near, z_near),
             (collect(K_near), collect(z_near)))
-        V_near = solve_rachford_rice(K_test, z_test)
+        V_near = solve_rachford_rice_unconstrained(K_test, z_test)
         x_near = liquid_mole_fraction.(z_test, K_test, V_near)
         y_near = vapor_mole_fraction.(x_near, K_test)
         @test V_near < 0
@@ -164,9 +174,9 @@ end
     z = @SVector [0.3, 0.1, 0.6]
     for (K_test, z_test) in ((K_vapor, z),
             (collect(K_vapor), collect(z)))
-        @test isnan(solve_rachford_rice(K_test, z_test))
-        @test MultiComponentFlash.physical_vapor_fraction(K_test, z_test) == 1
-        @test MultiComponentFlash.physical_vapor_fraction(inv.(K_test), z_test) == 0
+        @test isnan(solve_rachford_rice_unconstrained(K_test, z_test))
+        @test solve_rachford_rice(K_test, z_test) == 1
+        @test solve_rachford_rice(inv.(K_test), z_test) == 0
     end
 
     eos, _ = cubic_benchmark("simple")
@@ -379,6 +389,23 @@ end
     @test isbitstype(typeof(static_eos))
     @test static_eos.K_values_evaluator isa SVector{2, Float64}
     @test round(flash_2ph(static_eos, static_cond), digits = 4) ≈ 0.8091
+
+    # This SPE11C state has no resolvable wide-bound root but is liquid-only.
+    K_near_pure = SVector(0.005779466034671553, 40.46848280887238)
+    near_pure_eos = KValuesEOS(K_near_pure, mixture)
+    near_pure_cond = (p = 2.20173869e7, T = 313.7125,
+        z = SVector(1.0, 1.0e-10))
+    @test isnan(solve_rachford_rice_unconstrained(
+        K_near_pure, near_pure_cond.z))
+    @test solve_rachford_rice(K_near_pure, near_pure_cond.z) == 0
+    @test flash_2ph(near_pure_eos, near_pure_cond) == 0
+    @test isnan(flash_2ph(near_pure_eos, near_pure_cond,
+        K_near_pure, Inf))
+
+    @test flash_2ph(KValuesEOS(SVector(1.5, 2.0), mixture),
+        static_cond) == 1
+    @test flash_2ph(KValuesEOS(SVector(0.1, 0.5), mixture),
+        static_cond) == 0
 end
 
 @testset "Static flashed mixture storage" begin
