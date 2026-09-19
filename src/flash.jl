@@ -159,7 +159,7 @@ function flash_2ph_impl!(storage, K, eos, c, V, config::FlashConfig;
             i += 1
         end
         if !isfinite(V) && print_output(config) && check && !negative_flash
-            error("No admissible Rachford-Rice root for flash")
+            error("No admissible Rachford-Rice root for flash for K = $K and cond = $c")
         end
     end
     return (V, K, (its = i, converged = converged, stability = stability_report))
