@@ -219,6 +219,27 @@ end
     @test phase_data(flashed, Val(:vapor)).mole_fractions === y
 end
 
+@testset "Float32 flashed mixture storage" begin
+    x = SVector(0.8f0, 0.2f0)
+    y = SVector(0.1f0, 0.9f0)
+    K = SVector(0.125, 4.5)
+    flashed = FlashedMixture2Phase(
+        MultiComponentFlash.two_phase_lv, K, 0.4f0,
+        x, y, 0.9, 1.1)
+    @test flashed.V isa Float32
+    @test flashed.liquid.Z isa Float32
+    @test eltype(flashed.liquid.mole_fractions) === Float32
+
+    widened = FlashedMixture2Phase(
+        MultiComponentFlash.two_phase_lv, K, 0.4,
+        SVector(0.8, 0.2), SVector(0.1, 0.9), 0.9, 1.1)
+    target = typeof(flashed)
+    converted = convert(target, widened)
+    @test converted.V isa Float32
+    @test converted.liquid.mole_fractions == x
+    @test isequal(converted.flash_cond.z, widened.flash_cond.z)
+end
+
 using ForwardDiff
 @testset "Static flashed mixture promotion" begin
     x = @SVector [0.8, 0.2]

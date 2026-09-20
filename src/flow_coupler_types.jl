@@ -34,6 +34,11 @@ function Base.convert(::Type{FlashedPhase{T, Vector{T}}}, ph::FlashedPhase{K, Ve
     return FlashedPhase(mf, Z)
 end
 
+function Base.convert(::Type{FlashedPhase{T, A}}, ph::FlashedPhase) where {T, A<:AbstractVector{T}}
+    fractions = convert(A, map(x -> convert(T, x), ph.mole_fractions))
+    return FlashedPhase(fractions, convert(T, ph.Z))
+end
+
 "Type that holds liquid and vapor phase states together with their state"
 struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
     state::PhaseState2Phase
@@ -84,9 +89,25 @@ function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F}}, mixture::Fl
     return converted_mixture
 end
 
+function Base.convert(::Type{FlashedMixture2Phase{T, A, E}},
+        mixture::FlashedMixture2Phase) where {T, A<:AbstractVector{T}, E}
+    liquid = convert(FlashedPhase{T, A}, mixture.liquid)
+    vapor = convert(FlashedPhase{T, A}, mixture.vapor)
+    K = convert(E, mixture.K)
+    cond = mixture.flash_cond
+    flash_cond = (p = cond.p, T = cond.T, z = convert(E, cond.z))
+    return FlashedMixture2Phase(mixture.state, K, convert(T, mixture.V),
+        liquid, vapor;
+        vec_type = A,
+        critical_distance = mixture.critical_distance,
+        cond = flash_cond,
+        stability_report = mixture.flash_stability)
+end
+
 function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V, b = NaN, cond = missing, stability = StabilityReport())
-    liquid = FlashedPhase(x, Z_L)
-    vapor = FlashedPhase(y, Z_V)
+    T = typeof(V)
+    liquid = FlashedPhase(map(a -> convert(T, a), x), convert(T, Z_L))
+    vapor = FlashedPhase(map(a -> convert(T, a), y), convert(T, Z_V))
     return FlashedMixture2Phase(state, K, V, liquid, vapor,
         vec_type = typeof(liquid.mole_fractions), critical_distance = b, cond = cond,
         stability_report = stability)
