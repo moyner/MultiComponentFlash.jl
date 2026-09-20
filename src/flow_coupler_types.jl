@@ -44,17 +44,21 @@ struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
     critical_distance::Float64
     flash_cond::@NamedTuple{p::Float64, T::Float64, z::E}
     flash_stability::StabilityReport
-    function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t, liquid, vapor;
-            vec_type = Vector{V_t},
+    function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t,
+            liquid::FlashedPhase{V_t, A}, vapor::FlashedPhase{V_t, A};
+            vec_type = A,
             critical_distance = NaN,
             cond = missing,
             stability_report = StabilityReport()
-        ) where {V_t, K_t}
+        ) where {V_t, K_t, A}
+        # The phase vector type is part of the result type. Infer it from the
+        # phases instead of using the keyword value as a type parameter.
+        vec_type === A || throw(ArgumentError("vec_type must match the phase vectors"))
         if ismissing(cond)
             z0 = convert(K_t, fill(NaN, length(K)))
             cond = (p = NaN, T = NaN, z = z0)
         end
-        new{V_t, vec_type, K_t}(state, K, V, liquid, vapor, critical_distance, cond, stability_report)
+        new{V_t, A, K_t}(state, K, V, liquid, vapor, critical_distance, cond, stability_report)
     end
 end
 

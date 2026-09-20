@@ -235,6 +235,33 @@ using ForwardDiff
     @test dZ == 1.0
 end
 
+@testset "Static flashed mixture allocation" begin
+    function allocated_static_flash(V)
+        x = SVector(0.8*one(V), 0.2*one(V))
+        y = SVector(0.1*one(V), 0.9*one(V))
+        K = SVector(0.125, 4.5)
+        cond = (p = 1.0, T = 273.15, z = SVector(0.5, 0.5))
+        allocated_bytes = @allocated flashed = FlashedMixture2Phase(
+            MultiComponentFlash.two_phase_lv, K, V, x, y,
+            one(V), one(V), NaN, cond)
+        return allocated_bytes, flashed
+    end
+
+    # The flash is stored once per cell, so even a small per-result allocation
+    # produces substantial GC traffic on reservoir grids.
+    observed_bytes = Ref{Int}(0)
+    for _ in 1:2
+        ForwardDiff.derivative(0.4) do V
+            observed_bytes[], flashed = allocated_static_flash(V)
+            @test flashed.V == V
+            return flashed.V
+        end
+    end
+    if VERSION >= v"1.12"
+        @test observed_bytes[] == 0
+    end
+end
+
 @testset "Rachford-Rice derivatives" begin
     N = 25
     for z_light in range(0.0, 1.0, length = N)
