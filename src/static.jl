@@ -69,13 +69,30 @@ end
 @inline immutable_flash_output(V, K, stability, ::Val{true}) = (V, K, stability)
 
 """Return an isbits representation of a mixture for accelerator kernels."""
-function static_mixture(mixture::MultiComponentMixture{R, N}) where {R, N}
+function static_mixture(mixture::MultiComponentMixture{R_old, N}; float_type = missing) where {R_old, N}
+    if ismissing(float_type)
+        R = R_old
+        properties = mixture.properties
+    else
+        R = float_type
+        C(x) = convert(R, x)
+        properties = map(
+            x -> MolecularProperty(
+                C(x.mw),
+                C(x.p_c),
+                C(x.T_c),
+                C(x.V_c),
+                C(x.ω)
+            ),
+            mixture.properties
+        )
+    end
     names = ntuple(_ -> nothing, Val(N))
     bic = mixture.binary_interaction
     if !isnothing(bic)
         bic = SMatrix{N, N, R}(bic)
     end
-    return MultiComponentMixture(mixture.properties; A_ij = bic, names = names, name = nothing)
+    return MultiComponentMixture(properties; A_ij = bic, names = names, name = nothing)
 end
 
 """
@@ -83,11 +100,16 @@ end
 
 Convert a generic cubic EOS to an isbits representation for accelerator kernels.
 """
-function make_eos_immutable(eos::GenericCubicEOS{T, R, N}) where {T, R, N}
+function make_eos_immutable(eos::GenericCubicEOS{T, R, N}; float_type = missing) where {T, R, N}
     mixture = static_mixture(eos.mixture)
     volume_shift = eos.volume_shift
     if !isnothing(volume_shift)
-        volume_shift = SVector{N, eltype(volume_shift)}(volume_shift)
+        if ismissing(float_type)
+            v_type = eltype(volume_shift)
+        else
+            v_type = float_type
+        end
+        volume_shift = SVector{N, v_type}(volume_shift)
     end
     return GenericCubicEOS(
         eos.type,
@@ -135,8 +157,8 @@ end
     return (A_ij = A_ij_static, A_i = A_i_static, B_i = B_i_static)
 end
 
-function make_eos_immutable(eos::KValuesEOS{T, R, N}) where {T, R, N}
-    mixture = static_mixture(eos.mixture)
+function make_eos_immutable(eos::KValuesEOS{T, R, N}; float_type = missing) where {T, R, N}
+    mixture = static_mixture(eos.mixture; float_type = float_type)
     evaluator = eos.K_values_evaluator
     if evaluator isa AbstractVector
         evaluator = SVector{N, eltype(evaluator)}(evaluator)
