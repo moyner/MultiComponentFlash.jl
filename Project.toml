@@ -1,6 +1,6 @@
 name = "MultiComponentFlash"
 uuid = "35e5bd01-9722-4017-9deb-64a5d32478ff"
-version = "1.2.0"
+version = "2.0.0"
 authors = ["Olav Møyner <olav.moyner@gmail.com>"]
 
 [deps]
