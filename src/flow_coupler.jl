@@ -99,7 +99,7 @@ end
     vol_v = V*molar_volume(eos, p, Temp, f.vapor)
     vol_l = L*molar_volume(eos, p, Temp, f.liquid)
     S_v = vol_v/(vol_v + vol_l)
-    return S_v
+    return convert(T, S_v)
 end
 
 "Compute molar volume of a flashed phase"

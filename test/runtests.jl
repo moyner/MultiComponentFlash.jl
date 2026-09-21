@@ -219,6 +219,44 @@ end
     @test phase_data(flashed, Val(:vapor)).mole_fractions === y
 end
 
+@testset "Float32 flashed mixture storage" begin
+    x = SVector(0.8f0, 0.2f0)
+    y = SVector(0.1f0, 0.9f0)
+    K = SVector(0.125, 4.5)
+    flashed = FlashedMixture2Phase(
+        MultiComponentFlash.two_phase_lv, K, 0.4f0,
+        x, y, 0.9, 1.1)
+    @test flashed.V isa Float32
+    @test flashed.liquid.Z isa Float32
+    @test eltype(flashed.liquid.mole_fractions) === Float32
+
+    widened = FlashedMixture2Phase(
+        MultiComponentFlash.two_phase_lv, K, 0.4,
+        SVector(0.8, 0.2), SVector(0.1, 0.9), 0.9, 1.1)
+    @test isbitstype(typeof(widened))
+    target = typeof(flashed)
+    converted = convert(target, widened)
+    @test converted.V isa Float32
+    @test converted.liquid.mole_fractions == x
+    @test isequal(converted.flash_cond.z, widened.flash_cond.z)
+
+    narrow_K = SVector(0.125f0, 4.5f0)
+    narrow = FlashedMixture2Phase(
+        MultiComponentFlash.two_phase_lv, narrow_K, 0.4f0,
+        x, y, 0.9f0, 1.1f0, Float32(NaN),
+        (p = 1.0f6, T = 300.0f0, z = narrow_K))
+    @test narrow.critical_distance isa Float32
+    @test isbitstype(typeof(narrow))
+    @test narrow.flash_cond.p isa Float32
+    @test narrow.flash_cond.T isa Float32
+    @test eltype(narrow.flash_cond.z) === Float32
+    converted_narrow = convert(typeof(narrow), widened)
+    @test converted_narrow.K == narrow_K
+    @test converted_narrow.flash_cond.p isa Float32
+    partial_target = FlashedMixture2Phase{Float32, typeof(x), typeof(narrow_K)}
+    @test convert(partial_target, widened) isa typeof(narrow)
+end
+
 using ForwardDiff
 @testset "Static flashed mixture promotion" begin
     x = @SVector [0.8, 0.2]

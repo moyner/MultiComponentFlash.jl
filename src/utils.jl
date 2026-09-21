@@ -52,7 +52,7 @@ function lbc_viscosity(eos, p, temperature, ph::FlashedPhase{T}; coeff = (0.1023
     # Final expression is compound and given in centi poise. We convert to Pa s
     # instead for strict SI outputs.
     mu = 1e-3*(mu_atm + mu_correction)
-    return mu::T
+    return convert(T, mu)
 end
 
 function atmospheric_mu_estimate(props, z::V, temperature) where V<:AbstractVector{T} where T
