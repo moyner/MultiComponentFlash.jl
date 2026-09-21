@@ -40,14 +40,14 @@ function Base.convert(::Type{FlashedPhase{T, A}}, ph::FlashedPhase) where {T, A<
 end
 
 "Type that holds liquid and vapor phase states together with their state"
-struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
+struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E, R}
     state::PhaseState2Phase
     K::E # Equilibrium constants
     V::T # Vapor mole fraction
     liquid::FlashedPhase{T, A}
     vapor::FlashedPhase{T, A}
-    critical_distance::eltype(E)
-    flash_cond::NamedTuple{(:p, :T, :z), Tuple{eltype(E), eltype(E), E}}
+    critical_distance::R
+    flash_cond::NamedTuple{(:p, :T, :z), Tuple{R, R, E}}
     flash_stability::StabilityReport
     function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t,
             liquid::FlashedPhase{V_t, A}, vapor::FlashedPhase{V_t, A};
@@ -65,12 +65,12 @@ struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
             cond = (p = R(NaN), T = R(NaN), z = z0)
         end
         cond = (p = R(cond.p), T = R(cond.T), z = convert(K_t, cond.z))
-        new{V_t, A, K_t}(state, K, V, liquid, vapor,
+        new{V_t, A, K_t, R}(state, K, V, liquid, vapor,
             R(critical_distance), cond, stability_report)
     end
 end
 
-function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F}}, mixture::FlashedMixture2Phase{K, Vector{K}, F}) where {T<:ForwardDiff.Dual, K, F}
+function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F, R}}, mixture::FlashedMixture2Phase{K, Vector{K}, F}) where {T<:ForwardDiff.Dual, K, F, R}
     T_phase = FlashedPhase{T, Vector{T}}
     liquid = convert(T_phase, mixture.liquid)
     vapor = convert(T_phase, mixture.vapor)
@@ -92,8 +92,8 @@ function Base.convert(::Type{FlashedMixture2Phase{T, Vector{T}, F}}, mixture::Fl
     return converted_mixture
 end
 
-function Base.convert(::Type{FlashedMixture2Phase{T, A, E}},
-        mixture::FlashedMixture2Phase) where {T, A<:AbstractVector{T}, E}
+function Base.convert(::Type{FlashedMixture2Phase{T, A, E, R}},
+        mixture::FlashedMixture2Phase) where {T, A<:AbstractVector{T}, E, R}
     liquid = convert(FlashedPhase{T, A}, mixture.liquid)
     vapor = convert(FlashedPhase{T, A}, mixture.vapor)
     K = convert(E, mixture.K)
@@ -105,6 +105,12 @@ function Base.convert(::Type{FlashedMixture2Phase{T, A, E}},
         critical_distance = mixture.critical_distance,
         cond = flash_cond,
         stability_report = mixture.flash_stability)
+end
+
+function Base.convert(::Type{FlashedMixture2Phase{T, A, E}},
+        mixture::FlashedMixture2Phase) where {T, A<:AbstractVector{T}, E}
+    R = eltype(E)
+    return convert(FlashedMixture2Phase{T, A, E, R}, mixture)
 end
 
 function FlashedMixture2Phase(state, K, V, x, y, Z_L, Z_V, b = NaN, cond = missing, stability = StabilityReport())

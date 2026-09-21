@@ -233,6 +233,7 @@ end
     widened = FlashedMixture2Phase(
         MultiComponentFlash.two_phase_lv, K, 0.4,
         SVector(0.8, 0.2), SVector(0.1, 0.9), 0.9, 1.1)
+    @test isbitstype(typeof(widened))
     target = typeof(flashed)
     converted = convert(target, widened)
     @test converted.V isa Float32
@@ -245,12 +246,15 @@ end
         x, y, 0.9f0, 1.1f0, Float32(NaN),
         (p = 1.0f6, T = 300.0f0, z = narrow_K))
     @test narrow.critical_distance isa Float32
+    @test isbitstype(typeof(narrow))
     @test narrow.flash_cond.p isa Float32
     @test narrow.flash_cond.T isa Float32
     @test eltype(narrow.flash_cond.z) === Float32
     converted_narrow = convert(typeof(narrow), widened)
     @test converted_narrow.K == narrow_K
     @test converted_narrow.flash_cond.p isa Float32
+    partial_target = FlashedMixture2Phase{Float32, typeof(x), typeof(narrow_K)}
+    @test convert(partial_target, widened) isa typeof(narrow)
 end
 
 using ForwardDiff
