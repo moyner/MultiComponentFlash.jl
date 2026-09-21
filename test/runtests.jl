@@ -42,6 +42,158 @@ end
     test_flash_inplace(SSIFlash())
 end
 
+@testset "Negative flash from V=Inf" begin
+    host_eos = get_test_eos()
+    static_eos = make_eos_immutable(host_eos)
+    z = @SVector [0.5, 0.3, 0.2]
+    static_config = MultiComponentFlash.StaticConfig()
+
+    # These states are stable according to the ordinary flash, but their
+    # extrapolated equilibrium has V below zero or above one, respectively.
+    for (p, T, below_zero) in ((1e7, 250.0, true), (1e5, 400.0, false))
+        cond = (p = p, T = T, z = collect(z))
+        V_stable, _, stable_report = flash_2ph(host_eos, cond;
+            extra_out = true)
+        @test isnan(V_stable)
+        @test stable_report.stability.stable
+
+        static_cond = (p = p, T = T, z = z)
+        K0 = initial_guess_K(static_eos, static_cond, static_config)
+        V_static, K_static, static_report = flash_2ph!(static_config,
+            K0, static_eos, static_cond, Inf; extra_out = true)
+        @test static_report.converged
+        @test !static_report.stability_result.stable
+        @test (below_zero ? V_static < 0 : V_static > 1)
+        V_immutable, K_immutable = flash_2ph_immutable(
+            static_eos, static_cond, Inf)
+        @test V_immutable ≈ V_static
+        @test K_immutable ≈ K_static
+
+        for method in (SSIFlash(), NewtonFlash(), SSINewtonFlash())
+            host_cond = (p = p, T = T, z = collect(z))
+            V, K, report = flash_2ph(host_eos, host_cond,
+                initial_guess_K(host_eos, host_cond), Inf;
+                method = method, extra_out = true)
+            @test report.converged
+            @test !report.stability.stable
+            @test V ≈ V_static rtol = 1e-6
+            @test K ≈ K_static rtol = 1e-6
+            x = liquid_mole_fraction.(z, K, V)
+            y = vapor_mole_fraction.(x, K)
+            @test all(>(0), x)
+            @test all(>(0), y)
+            @test sum(x) ≈ 1 atol = 1e-7
+            @test sum(y) ≈ 1 atol = 1e-7
+        end
+    end
+
+    # A trivial K ≈ 1 fixed point is not a converged negative flash.
+    trivial_cond = (p = 5e7, T = 250.0, z = collect(z))
+    _, _, trivial_report = flash_2ph(host_eos, trivial_cond,
+        initial_guess_K(host_eos, trivial_cond), Inf;
+        extra_out = true, check = false, maxiter = 100)
+    @test !trivial_report.converged
+
+    K4 = @SVector [0.2, 0.4, 2.0, 4.0]
+    z4 = @SVector [0.25, 0.25, 0.25, 0.25]
+    @test solve_rachford_rice_unconstrained(K4, z4, Inf) ≈
+        solve_rachford_rice_unconstrained(K4, z4, NaN)
+    @test solve_rachford_rice_unconstrained(collect(K4), collect(z4), Inf) ≈
+        solve_rachford_rice_unconstrained(collect(K4), collect(z4), NaN)
+
+    # A guess at a pole must be reinitialized inside the positive-composition
+    # window, even when the correct negative-flash root lies outside [0, 1].
+    for (z_negative, below_zero) in
+            ((@SVector([0.7, 0.2, 0.05, 0.05]), true),
+             (@SVector([0.05, 0.05, 0.2, 0.7]), false))
+        for (K_test, z_test) in ((K4, z_negative),
+                (collect(K4), collect(z_negative)))
+            V_expected = solve_rachford_rice_unconstrained(K_test, z_test)
+            if below_zero
+                @test V_expected < 0
+                @test solve_rachford_rice(K_test, z_test) == 0
+            else
+                @test V_expected > 1
+                @test solve_rachford_rice(K_test, z_test) == 1
+            end
+            V_pole = 1/(1 - maximum(K_test))
+            @test solve_rachford_rice_unconstrained(K_test, z_test,
+                V_pole) ≈ V_expected
+        end
+    end
+
+    # Regression for a phase-diagram failure: all K-values were above one,
+    # yet the old RR solve returned a root between two negative poles. That
+    # root gave negative/huge phase compositions and crashed the EOS.
+    K_runaway = @SVector [1.0496438050320456, 1.8228323947565352,
+        3.6255787603685725, 8.673724738551629,
+        23.930790867112876, 63.42734611565452]
+    z_runaway = @SVector [0.635, 0.115, 0.05, 0.1, 0.075, 0.025]
+    V_pole = -0.016018621040647378
+    @test isnan(solve_rachford_rice_unconstrained(K_runaway,
+        z_runaway, V_pole))
+    @test isnan(solve_rachford_rice_unconstrained(
+        collect(K_runaway), collect(z_runaway), V_pole))
+    @test isnan(solve_rachford_rice_unconstrained(K_runaway, z_runaway))
+    @test solve_rachford_rice(K_runaway, z_runaway) == 1
+
+    # With K almost equal to one, a valid negative flash can have |V| >> 1.
+    # The RR stopping test and composition formula must both preserve the
+    # normalization of the extrapolated liquid and vapor phases.
+    K_near = @SVector [0.1, 0.5, 1.0 + 1e-14, 1.0 + 2e-14]
+    z_near = @SVector [0.01, 0.01, 0.49, 0.49]
+    for (K_test, z_test) in ((K_near, z_near),
+            (collect(K_near), collect(z_near)))
+        V_near = solve_rachford_rice_unconstrained(K_test, z_test)
+        x_near = liquid_mole_fraction.(z_test, K_test, V_near)
+        y_near = vapor_mole_fraction.(x_near, K_test)
+        @test V_near < 0
+        @test all(>(0), x_near)
+        @test sum(x_near) ≈ 1 atol = 1e-10
+        @test sum(y_near) ≈ 1 atol = 1e-10
+    end
+
+    K_no_split = @SVector [1.1, 2.0, 3.0]
+    V_bad, _, bad_report = flash_2ph!(static_config, K_no_split,
+        static_eos, (p = 1e7, T = 250.0, z = z), Inf; extra_out = true)
+    @test isnan(V_bad)
+    @test !bad_report.converged
+    V_bad_host, _, bad_host_report = flash_2ph(host_eos,
+        (p = 1e7, T = 250.0, z = collect(z)), collect(K_no_split), Inf;
+        extra_out = true)
+    @test isnan(V_bad_host)
+    @test !bad_host_report.converged
+end
+
+@testset "Single-phase RR iterates in ordinary flashes" begin
+    # This K iterate was observed while sweeping the simple phase diagram.
+    # It has no negative-flash root, but an ordinary flash must remain on the
+    # vapor boundary and continue rather than turn V into NaN.
+    K_vapor = @SVector [1.2749359332142336, 1.0540125780535836,
+        1.0710895839941093]
+    z = @SVector [0.3, 0.1, 0.6]
+    for (K_test, z_test) in ((K_vapor, z),
+            (collect(K_vapor), collect(z)))
+        @test isnan(solve_rachford_rice_unconstrained(K_test, z_test))
+        @test solve_rachford_rice(K_test, z_test) == 1
+        @test solve_rachford_rice(inv.(K_test), z_test) == 0
+    end
+
+    eos, _ = cubic_benchmark("simple")
+    cond = (p = 364529.05811623245, T = 274.15, z = collect(z))
+    V, _, report = flash_2ph(eos, cond, collect(K_vapor), 0.5;
+        extra_out = true)
+    @test report.converged
+    @test 0 <= V <= 1
+
+    static_cond = (p = cond.p, T = cond.T, z = z)
+    V_static, _, static_report = flash_2ph!(MultiComponentFlash.StaticConfig(),
+        K_vapor, make_eos_immutable(eos), static_cond, 0.5;
+        extra_out = true)
+    @test static_report.converged
+    @test V_static ≈ V
+end
+
 @testset "Static accelerator path" begin
     host_eos = get_test_eos()
     eos = make_eos_immutable(host_eos)
@@ -129,6 +281,37 @@ end
         @test isnan(V_nearby)
         @test all(isfinite, K_nearby)
         @test nearby_stability.bypassed
+        _, _, forced_test = flash_2ph_immutable(eos, nearby;
+            stability_storage = flash_stability,
+            stability_bypass = false,
+            return_stability = true)
+        @test !forced_test.bypassed
+        @test forced_test.storage.reference == nearby
+
+        # A trial that hits its iteration limit has not found a trivial
+        # stability minimum, even if the old implementation assumed stability.
+        unfinished = stability_2ph_immutable(eos, c; maxiter = 1)
+        @test !unfinished.stable
+        @test isnan(unfinished.storage.critical_distance)
+        near_unstable = (p = 1.01e6, T = c.T, z = c.z)
+        @test !stability_2ph_immutable(eos, near_unstable, unfinished).bypassed
+        @test !stability_2ph_immutable(eos, near_unstable).stable
+
+        # A one-sided test may be useful, but cannot certify a reference for
+        # bypassing both trial phases at a later condition.
+        vapor_unstable = (p = 1e6, T = 200.0, z = c.z)
+        one_sided = stability_2ph_immutable(eos, vapor_unstable;
+            check_vapor = false)
+        @test one_sided.stable
+        @test isnan(one_sided.storage.critical_distance)
+        skipped_liquid = stability_2ph_immutable(eos, stable_cond;
+            check_liquid = false)
+        @test skipped_liquid.stable
+        @test isnan(skipped_liquid.storage.critical_distance)
+        near_vapor_unstable = (p = 1.01e6, T = 200.0, z = c.z)
+        @test !stability_2ph_immutable(eos, near_vapor_unstable,
+            one_sided).bypassed
+        @test !stability_2ph_immutable(eos, near_vapor_unstable).stable
         @test_throws ArgumentError stability_2ph_immutable(eos, nearby,
             stability.storage; bypass_tolerance = 0.0)
     end
@@ -206,6 +389,23 @@ end
     @test isbitstype(typeof(static_eos))
     @test static_eos.K_values_evaluator isa SVector{2, Float64}
     @test round(flash_2ph(static_eos, static_cond), digits = 4) ≈ 0.8091
+
+    # This SPE11C state has no resolvable wide-bound root but is liquid-only.
+    K_near_pure = SVector(0.005779466034671553, 40.46848280887238)
+    near_pure_eos = KValuesEOS(K_near_pure, mixture)
+    near_pure_cond = (p = 2.20173869e7, T = 313.7125,
+        z = SVector(1.0, 1.0e-10))
+    @test isnan(solve_rachford_rice_unconstrained(
+        K_near_pure, near_pure_cond.z))
+    @test solve_rachford_rice(K_near_pure, near_pure_cond.z) == 0
+    @test flash_2ph(near_pure_eos, near_pure_cond) == 0
+    @test isnan(flash_2ph(near_pure_eos, near_pure_cond,
+        K_near_pure, Inf))
+
+    @test flash_2ph(KValuesEOS(SVector(1.5, 2.0), mixture),
+        static_cond) == 1
+    @test flash_2ph(KValuesEOS(SVector(0.1, 0.5), mixture),
+        static_cond) == 0
 end
 
 @testset "Static flashed mixture storage" begin

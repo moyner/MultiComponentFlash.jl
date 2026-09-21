@@ -29,7 +29,7 @@ module MultiComponentFlash
     # K-values
     export wilson_estimate, wilson_estimate!, initial_guess_K, initial_guess_K!
     # Vapor-liquid equilibrium
-    export solve_rachford_rice
+    export solve_rachford_rice, solve_rachford_rice_unconstrained
 
     export liquid_mole_fraction, vapor_mole_fraction
     export component_fugacity, mixture_fugacities, mixture_compressibility_factor

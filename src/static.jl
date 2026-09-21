@@ -22,11 +22,16 @@ Run the immutable, accelerator-friendly two-phase flash implementation.
 scalar vapor fraction. When `storage` is omitted, a static storage marker is
 created automatically.
 
+Pass `V0=Inf` to skip stability testing and perform a negative flash, allowing
+the vapor fraction to converge outside `[0, 1]`.
+
 Set `return_stability=true` to additionally return a
 [`StaticStabilityResult`](@ref). Its immutable `storage` can be supplied as
 `stability_storage` on the next call to enable the Michelsen bypass. The
 default `bypass_tolerance=10` uses the same conservative pressure, temperature
 and composition bounds as the mutable simulator integration.
+Set `stability_bypass=false` to force a fresh stability test even when storage
+is supplied; `return_stability=true` still records a new reference if eligible.
 
 The immutable path currently supports `SSIFlash` and generic cubic EOS values
 converted with [`make_eos_immutable`](@ref).
@@ -59,7 +64,8 @@ end
         method = method,
         extra_out = true,
         stability_storage = stability_storage,
-        stability_bypass = stability_bypass || return_stability,
+        stability_bypass = stability_bypass,
+        update_bypass = stability_bypass || return_stability,
         kwarg...)
     return immutable_flash_output(V, K, report.stability_result,
         Val(return_stability))
@@ -190,9 +196,10 @@ end
         return false
     end
     reference = storage.reference
-    return maximum(abs, reference.z - cond.z) < b/tolerance &&
+    stable = maximum(abs, reference.z - cond.z) < b/tolerance &&
         abs(reference.p - cond.p) < b*abs(cond.p)/tolerance &&
         abs(reference.T - cond.T) < b*tolerance
+    return stable
 end
 
 @inline static_minimum_eigenvalue(B::SMatrix) =
@@ -233,76 +240,54 @@ end
     return static_minimum_eigenvalue(B)
 end
 
-@inline function solve_rachford_rice(K::StaticVector{2}, z::StaticVector{2}, V = NaN)
-    z1, z2 = z
-    k1, k2 = K
-    b1, b2 = inv(1 - k1), inv(1 - k2)
-    return (z1*b2 + z2*b1)/(z1 + z2)
-end
-
-@inline function solve_rachford_rice(K::StaticVector{3}, z::StaticVector{3}, V = NaN)
-    z1, z2, z3 = z
-    k1, k2, k3 = K
-    b1, b2, b3 = inv(1-k1), inv(1-k2), inv(1-k3)
-    a2 = z1 + z2 + z3
-    a1 = -b1*(z2 + z3) - b2*(z1 + z3) - b3*(z1 + z2)
-    a0 = b1*b2*z3 + b1*b3*z2 + b2*b3*z1
-    discriminant = a1*a1 - 4*a0*a2
-    if discriminant >= zero(discriminant)
-        inv_2a2 = inv(2*a2)
-        root_offset = sqrt(discriminant)*inv_2a2
-        root_center = -a1*inv_2a2
-        root1 = root_center - root_offset
-        root2 = root_center + root_offset
-        if zero(root1) < root1 < one(root1)
-            return root1
-        elseif zero(root2) < root2 < one(root2)
-            return root2
-        elseif isfinite(root1 + root2)
-            kmin = min(k1, k2, k3)
-            kmax = max(k1, k2, k3)
-            kmin > one(kmin) && return max(root1, root2)
-            kmax < one(kmax) && return min(root1, root2)
+@inline function solve_rachford_rice_unconstrained(
+        K::StaticVector{2}, z::StaticVector{2}, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
+    V_lo, V_hi = positive_rachford_rice_bounds(K, z)
+    V_lo < V_hi || return oftype(K[1], NaN)
+    if analytical
+        root = rachford_rice_analytic_2(K, z, V_lo, V_hi)
+        if isfinite(root) &&
+                rachford_rice_balance_error(root, objectiveRR(root, K, z)) <= tol
+            return root
         end
     end
-    return solve_rachford_rice_static_iterative(K, z, V)
+    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
 end
 
-@inline solve_rachford_rice(K::StaticVector, z::StaticVector, V = NaN) =
-    solve_rachford_rice_static_iterative(K, z, V)
+@inline function solve_rachford_rice_unconstrained(
+        K::StaticVector{3}, z::StaticVector{3}, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
+    V_lo, V_hi = positive_rachford_rice_bounds(K, z)
+    V_lo < V_hi || return oftype(K[1], NaN)
+    if analytical
+        root = rachford_rice_analytic_3(K, z, V_lo, V_hi)
+        if isfinite(root) &&
+                rachford_rice_balance_error(root, objectiveRR(root, K, z)) <= tol
+            return root
+        end
+    end
+    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
+end
+
+@inline function solve_rachford_rice_unconstrained(
+        K::StaticVector, z::StaticVector, V = NaN;
+        tol = 1e-12, maxiter = 1000, ad = false, analytical = true,
+        verbose = false)
+    return solve_rachford_rice_static_iterative(K, z, V;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
+end
 
 @inline function solve_rachford_rice_static_iterative(K, z, V;
-        tol = 1e-12, maxiter = 1000)
-    V_lo = inv(1 - maximum(K))
-    V_hi = inv(1 - minimum(K))
-    if V_hi < V_lo
-        V_lo, V_hi = V_hi, V_lo
-    end
-    if isnan(V)
-        V = (V_lo + V_hi)/2
-    end
-    for _ in 1:maxiter
-        residual = zero(V)
-        denominator = zero(V)
-        @inbounds for i in eachindex(K)
-            delta_K = K[i] - one(K[i])
-            term_denominator = one(V) + V*delta_K
-            residual += z[i]*delta_K/term_denominator
-            denominator += z[i]*delta_K^2/term_denominator^2
-        end
-        abs(residual) < tol && break
-        if residual > zero(residual)
-            V_lo = V
-        else
-            V_hi = V
-        end
-        V_next = V + residual/denominator
-        if !(V_lo < V_next < V_hi) || !isfinite(V_next)
-            V_next = (V_lo + V_hi)/2
-        end
-        V = V_next
-    end
-    return V
+        tol = 1e-12, maxiter = 1000, ad = false, verbose = false)
+    V_lo, V_hi = positive_rachford_rice_bounds(K, z)
+    V_lo < V_hi || return oftype(K[1], NaN)
+    return solve_rachford_rice_bounded(K, z, V, V_lo, V_hi;
+        tol = tol, maxiter = maxiter, ad = ad, verbose = verbose)
 end
 
 @generated function static_fugacities(eos::GenericCubicEOS{E, R, N}, cond, forces,
@@ -316,7 +301,7 @@ end
 end
 
 @inline function static_ssi(K::SVector{N, F}, p::F, T::F, z, V::F,
-        eos, forces) where {N, F<:Real}
+        eos, forces, negative_flash::Bool = false) where {N, F<:Real}
     x = SVector{N, F}(ntuple(i -> liquid_mole_fraction(z[i], K[i], V), Val(N)))
     y = SVector{N, F}(ntuple(i -> vapor_mole_fraction(x[i], K[i]), Val(N)))
     liquid = (p = p, T = T, z = x, phase = Val(:liquid))
@@ -329,8 +314,11 @@ end
         residual = max(residual, abs(one(F) - ratios[i]))
     end
     K_next = SVector{N, F}(ntuple(i -> K[i]*ratios[i], Val(N)))
-    V_next = solve_rachford_rice(K_next, z, V)
-    V_next = clamp(V_next, zero(V_next), one(V_next))
+    if negative_flash
+        V_next = solve_rachford_rice_unconstrained(K_next, z, V)
+    else
+        V_next = solve_rachford_rice(K_next, z, V)
+    end
     return V_next, K_next, residual
 end
 
@@ -359,6 +347,7 @@ end
         z_min = MINIMUM_COMPOSITION,
         stability_storage = nothing,
         stability_bypass::Bool = !isnothing(stability_storage),
+        update_bypass::Bool = stability_bypass,
         bypass_tolerance::Real = 10.0,
         kwarg...
     ) where {E, R, N}
@@ -368,11 +357,13 @@ end
     z = cond.z
     forces = static_force_coefficients(eos, cond, F)
     V = convert(F, V)
+    negative_flash = isinf(V)
     single_phase_init = isnan(V) || V == one(F) || V == zero(F)
     if single_phase_init
         stability_result = static_stability_2ph(K, eos, cond, forces;
             storage = stability_storage_value(stability_storage),
-            update_bypass = stability_bypass,
+            use_bypass = stability_bypass,
+            update_bypass = update_bypass,
             bypass_tolerance = bypass_tolerance,
             maxiter = maxiter,
             kwarg...)
@@ -390,13 +381,25 @@ end
         iteration = 0
     else
         iteration = 1
-        if isnan(V)
-            V = solve_rachford_rice(K, z, V)
+        if isnan(V) || negative_flash
+            if negative_flash
+                V = solve_rachford_rice_unconstrained(K, z, NaN)
+            else
+                V = solve_rachford_rice(K, z, NaN)
+            end
         end
-        while true
-            V, K, residual = static_ssi(K, cond.p, cond.T, z, V, eos, forces)
-            converged = residual <= tolerance
-            (converged || iteration == maxiter) && break
+        while isfinite(V)
+            V, K, residual = static_ssi(K, cond.p, cond.T, z, V, eos, forces, negative_flash)
+            # A RR root outside the positive-composition window is not a
+            # negative flash. Ordinary flashes use a single-phase boundary.
+            isfinite(V) || break
+            residual_converged = residual <= tolerance
+            max_its_reached = iteration == maxiter
+            if residual_converged || max_its_reached
+                negative_converged = !negative_flash || valid_negative_flash_solution(V, K, z)
+                converged = residual_converged && negative_converged
+                break
+            end
             iteration += 1
         end
     end
@@ -442,6 +445,7 @@ end
         maxiter = 1000
     ) where {N, F}
     trivial = false
+    converged = false
     S = one(F)
     iter = 0
     xy = zero(SVector{N, F})
@@ -468,12 +472,13 @@ end
         converged = R_norm < tol_equil
         if trivial || converged
             break
-        elseif iter == maxiter
-            trivial = true
+        elseif iter >= maxiter
+            # An unfinished trial phase is not evidence of a trivial minimum.
+            # In particular, it must not create a single-phase bypass cache.
             break
         end
     end
-    stable = trivial || S <= one(F) + tol_sat
+    stable = trivial || (converged && S <= one(F) + tol_sat)
     return stable, trivial, iter, K, xy
 end
 
@@ -482,10 +487,11 @@ end
         check_liquid::Bool = true,
         storage = nothing,
         update_bypass::Bool = false,
+        use_bypass::Bool = update_bypass,
         bypass_tolerance::Real = 10.0,
         kwarg...
     ) where {N, F}
-    if update_bypass && !isnothing(storage) &&
+    if use_bypass && !isnothing(storage) &&
             stability_bypass_available(storage, cond;
                 tolerance = bypass_tolerance)
         report = StabilityReport(true, true, true, true)
@@ -512,8 +518,10 @@ end
     report = StabilityReport(stable_liquid, trivial_liquid,
         stable_vapor, trivial_vapor)
     K_out = report.stable ? K_liquid : static_divide(y, x)
-    if update_bypass && report.stable && report.liquid.trivial &&
-            report.vapor.trivial
+    # Only a complete, converged two-sided test can establish a new reference.
+    # Skipped trial phases are reported as stable above, but prove no such thing.
+    if update_bypass && check_liquid && check_vapor && report.stable &&
+            report.liquid.trivial && report.vapor.trivial
         critical_distance = static_michelsen_critical_point_measure(
             eos, cond.p, cond.T, cond.z)
         next_storage = StaticStabilityStorage(cond, critical_distance)
