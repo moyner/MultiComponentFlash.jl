@@ -46,8 +46,8 @@ struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
     V::T # Vapor mole fraction
     liquid::FlashedPhase{T, A}
     vapor::FlashedPhase{T, A}
-    critical_distance::Float64
-    flash_cond::@NamedTuple{p::Float64, T::Float64, z::E}
+    critical_distance::eltype(E)
+    flash_cond::NamedTuple{(:p, :T, :z), Tuple{eltype(E), eltype(E), E}}
     flash_stability::StabilityReport
     function FlashedMixture2Phase(state::PhaseState2Phase, K::K_t, V::V_t,
             liquid::FlashedPhase{V_t, A}, vapor::FlashedPhase{V_t, A};
@@ -59,11 +59,14 @@ struct FlashedMixture2Phase{T, A<:AbstractVector{T}, E}
         # The phase vector type is part of the result type. Infer it from the
         # phases instead of using the keyword value as a type parameter.
         vec_type === A || throw(ArgumentError("vec_type must match the phase vectors"))
+        R = eltype(K_t)
         if ismissing(cond)
             z0 = convert(K_t, fill(NaN, length(K)))
-            cond = (p = NaN, T = NaN, z = z0)
+            cond = (p = R(NaN), T = R(NaN), z = z0)
         end
-        new{V_t, A, K_t}(state, K, V, liquid, vapor, critical_distance, cond, stability_report)
+        cond = (p = R(cond.p), T = R(cond.T), z = convert(K_t, cond.z))
+        new{V_t, A, K_t}(state, K, V, liquid, vapor,
+            R(critical_distance), cond, stability_report)
     end
 end
 
@@ -116,7 +119,6 @@ end
 function FlashedMixture2Phase(eos::AbstractEOS, T = Float64, T_num = Float64, b = NaN, cond = missing, stability = StabilityReport())
     n = number_of_components(eos)
     V = zero(T)
-    # K values are always doubles
     K = zeros(T_num, n)
     liquid = FlashedPhase(n, T)
     vapor = FlashedPhase(n, T)
