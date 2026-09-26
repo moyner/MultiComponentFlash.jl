@@ -41,7 +41,7 @@ Create vector of K-values that holds the `wilson_estimate` for each species.
 """
 function wilson_estimate(eos, p, T)
     K = zeros(number_of_components(eos))
-    wilson_estimate!(K, mixture, p, T)
+    wilson_estimate!(K, eos.mixture, p, T)
     return K
 end
 
