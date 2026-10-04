@@ -27,8 +27,8 @@ equilibrium K-values at `numeric_cond`; this function does not solve a flash.
 The function differentiates the fugacity equilibrium and Rachford-Rice
 residuals, then solves their static `(N+1) × (N+1)` Jacobian system. It requires
 `0 < V_numeric < 1`, positive compositions and K-values, and a nonsingular
-Jacobian. It does not differentiate stability decisions or phase boundaries.
-For accelerator use, pass an immutable EOS from [`make_eos_immutable`](@ref).
+Jacobian. It does not differentiate stability decisions or phase boundaries. For
+accelerator use, pass an immutable EOS from `make_eos_immutable`.
 """
 @inline function implicit_flash_derivatives(
         eos::GenericCubicEOS{E, R, N}, numeric_cond, ad_cond,
