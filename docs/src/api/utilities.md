@@ -1,10 +1,12 @@
 # Utilities
+
 ```@index
 Pages = ["utilities.md"]
 ```
 
 ## Partial derivatives
-!!! note "Experimental features" 
+
+!!! note "Experimental features"
     Functions for obtaining partial derivatives of the flashed results. Please note that this is an experimental feature. Examples of usage are found in the unit tests.
 
 ```@autodocs
@@ -15,7 +17,8 @@ Private = false
 ```
 
 ## Coupling utilities
-!!! note "Experimental features" 
+
+!!! note "Experimental features"
     Utilities for coupling flash to simulation codes. Please note that this is an experimental feature.
 
 ```@autodocs
@@ -25,8 +28,12 @@ Order   = [:type, :function]
 Private = false
 ```
 
+```@docs
+implicit_flash_derivatives 
+```
 
 ## Various
+
 ```@autodocs
 Modules = [MultiComponentFlash]
 Pages   = ["utils.jl"]

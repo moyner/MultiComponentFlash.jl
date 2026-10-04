@@ -44,6 +44,7 @@ module MultiComponentFlash
     export SinglePhaseLiquid, SinglePhaseVapor, TwoPhaseLiquidVapor, FlashedPhase, UnknownPhaseState, FlashedMixture2Phase
     export phase_saturations, mass_density, mass_densities, molar_volume, phase_is_present
     export inverse_flash_update!
+    export implicit_flash_derivatives
     export lbc_viscosity, lbc_viscosities
     export set_partials, set_partials_phase_mole_fractions!, set_partials_vapor_fraction
 
@@ -56,6 +57,8 @@ module MultiComponentFlash
     include("derivatives.jl")
     include("stability.jl")
     include("static.jl")
+    include("implicit_flash_derivatives.jl")
+    using .ImplicitFlashDerivatives: implicit_flash_derivatives
     include("tables.jl")
 
     include("flow_coupler.jl")
