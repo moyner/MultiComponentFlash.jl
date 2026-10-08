@@ -150,7 +150,17 @@ end
 end
 
 """Immutable force coefficients for accelerator kernels."""
-@inline function static_force_coefficients(eos::GenericCubicEOS{E, R, N}, cond,
+@inline function static_force_coefficients(eos::GenericCubicEOS, cond, ::Type{T}) where T
+    if forces_per_phase(eos)
+        liquid = static_phase_force_coefficients(eos, set_phase(cond, :liquid), T)
+        vapor = static_phase_force_coefficients(eos, set_phase(cond, :vapor), T)
+        return (liquid = liquid, vapor = vapor)
+    else
+        return static_phase_force_coefficients(eos, cond, T)
+    end
+end
+
+@inline function static_phase_force_coefficients(eos::GenericCubicEOS{E, R, N}, cond,
         ::Type{T}) where {E, R, N, T}
     A_i_static = SVector{N, T}(ntuple(i -> A_i(eos, cond, i), Val(N)))
     B_i_static = SVector{N, T}(ntuple(i -> B_i(eos, cond, i), Val(N)))
@@ -520,7 +530,7 @@ end
     K_out = report.stable ? K_liquid : static_divide(y, x)
     # Only a complete, converged two-sided test can establish a new reference.
     # Skipped trial phases are reported as stable above, but prove no such thing.
-    if update_bypass && check_liquid && check_vapor && report.stable &&
+    if update_bypass && !forces_per_phase(eos) && check_liquid && check_vapor && report.stable &&
             report.liquid.trivial && report.vapor.trivial
         critical_distance = static_michelsen_critical_point_measure(
             eos, cond.p, cond.T, cond.z)

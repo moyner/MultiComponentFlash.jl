@@ -120,6 +120,24 @@ end
     @test report.converged
     @test isfinite(vapor_fraction)
     @test all(isfinite, K)
+
+    # Both simulator flash paths must retain the phase-specific interactions.
+    static_cond = (p = cond.p, T = cond.T, z = SVector{2}(cond.z))
+    V_static, K_static = MCF.flash_2ph_immutable(eos, static_cond)
+    @test V_static ≈ vapor_fraction rtol = 1e-7
+    @test K_static ≈ K rtol = 1e-7
+    mixture_flash = MCF.flashed_mixture_2ph(eos, cond)
+    @test mixture_flash.V ≈ vapor_fraction
+    @test isfinite(mixture_flash.liquid.Z)
+    @test isfinite(mixture_flash.vapor.Z)
+
+    ad_cond = (p = MCF.ForwardDiff.Dual{Nothing}(cond.p, 1.0),
+        T = cond.T, z = static_cond.z)
+    V_ad, _ = MCF.implicit_flash_derivatives(eos, static_cond, ad_cond, V_static, K_static)
+    h = 100.0
+    V_plus, _ = MCF.flash_2ph_immutable(eos, (; static_cond..., p = cond.p + h))
+    V_minus, _ = MCF.flash_2ph_immutable(eos, (; static_cond..., p = cond.p - h))
+    @test MCF.ForwardDiff.partials(V_ad)[1] ≈ (V_plus - V_minus)/(2h) rtol = 1e-4
 end
 
 @testset "Cubic root degeneracies" begin
