@@ -107,7 +107,9 @@ end
 Convert a generic cubic EOS to an isbits representation for accelerator kernels.
 """
 function make_eos_immutable(eos::GenericCubicEOS{T, R, N}; float_type = missing) where {T, R, N}
-    mixture = static_mixture(eos.mixture)
+    mixture = static_mixture(eos.mixture; float_type = float_type)
+    type = static_cubic_type(eos.type; float_type = float_type)
+    C = ismissing(float_type) ? identity : float_type
     volume_shift = eos.volume_shift
     if !isnothing(volume_shift)
         if ismissing(float_type)
@@ -118,14 +120,27 @@ function make_eos_immutable(eos::GenericCubicEOS{T, R, N}; float_type = missing)
         volume_shift = SVector{N, v_type}(volume_shift)
     end
     return GenericCubicEOS(
-        eos.type,
+        type,
         mixture,
-        eos.m_1,
-        eos.m_2,
-        eos.ω_a,
-        eos.ω_b,
+        C(eos.m_1),
+        C(eos.m_2),
+        C(eos.ω_a),
+        C(eos.ω_b),
         volume_shift
     )
+end
+
+# Most cubic types carry no mutable data. Søreide-Whitson additionally stores
+# component classifications, which must be embedded in the kernel argument.
+static_cubic_type(type; float_type = missing) = type
+
+function static_cubic_type(sw::SoreideWhitson{T}; float_type = missing) where T
+    R = ismissing(float_type) ? T : float_type
+    N = length(sw.component_types)
+    return SoreideWhitson{R}(
+        map(R, sw.A), map(R, sw.A_mw), map(R, sw.alphas),
+        map(R, sw.water_coefficients), R(sw.molality), R(sw.T_co2),
+        SVector{N, COMPONENT_ENUM}(sw.component_types))
 end
 
 """Return immutable Wilson K-values for static storage."""

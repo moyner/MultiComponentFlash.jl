@@ -95,14 +95,21 @@ Note that this EOS requires water to be present in the mixture by name (it is
 after all the whole point of the Søreide-Whitson EOS). Special treatment is
 used for H2S, CO2, and N2 when given by name.
 """
-struct SoreideWhitson{T} <: AbstractPengRobinson
+struct SoreideWhitson{T, C<:AbstractVector{COMPONENT_ENUM}} <: AbstractPengRobinson
     A::NTuple{3, T}
     A_mw::NTuple{3, T}
     alphas::NTuple{3, T}
     water_coefficients::NTuple{3, T}
     molality::T
     T_co2::T
-    component_types::Vector{COMPONENT_ENUM}
+    component_types::C
+end
+
+# Retain the explicitly parameterized constructor used by existing callers.
+function SoreideWhitson{T}(A, A_mw, alphas, water_coefficients,
+        molality, T_co2, component_types::C) where {T, C<:AbstractVector{COMPONENT_ENUM}}
+    return SoreideWhitson{T, C}(A, A_mw, alphas, water_coefficients,
+        molality, T_co2, component_types)
 end
 
 function SoreideWhitson(mixture_or_cnames::Union{MultiComponentMixture, Vector{String}};

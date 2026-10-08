@@ -52,7 +52,8 @@ Base.@propagate_inbounds function binary_interaction(eos::AbstractEOS, i::Int, j
 end
 
 Base.@propagate_inbounds function binary_interaction(mixture::MultiComponentMixture{R}, i, j) where {R}
-    return binary_interaction(mixture.binary_interaction, i, j)::R
+    bic = mixture.binary_interaction
+    return isnothing(bic) ? zero(R) : binary_interaction(bic, i, j)::R
 end
 
 function binary_interaction(::Nothing, i, j)
