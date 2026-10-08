@@ -154,6 +154,10 @@ end
 # Val phase tags keep Symbol construction and dynamic dispatch out of kernels.
 @inline phase_symbol(::Val{phase}) where phase = phase
 
+@inline function set_phase(cond, phase::Val)
+    return (p = cond.p, T = cond.T, z = cond.z, phase = phase)
+end
+
 @inline function pick_root(eos, roots, cond, forces, scalars, ::Val{:liquid})
     min_root, _ = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
     return min_root
@@ -167,8 +171,8 @@ end
 """Immutable force coefficients for accelerator kernels."""
 @inline function static_force_coefficients(eos::GenericCubicEOS, cond, ::Type{T}) where T
     if forces_per_phase(eos)
-        liquid = static_phase_force_coefficients(eos, set_phase(cond, :liquid), T)
-        vapor = static_phase_force_coefficients(eos, set_phase(cond, :vapor), T)
+        liquid = static_phase_force_coefficients(eos, set_phase(cond, Val(:liquid)), T)
+        vapor = static_phase_force_coefficients(eos, set_phase(cond, Val(:vapor)), T)
         return (liquid = liquid, vapor = vapor)
     else
         return static_phase_force_coefficients(eos, cond, T)
