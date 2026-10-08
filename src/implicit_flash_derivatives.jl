@@ -145,7 +145,11 @@ end
         y = SVector{$N, F}(($(y_entries...),))
         liquid = (p = cond.p, T = cond.T, z = x, phase = Val(:liquid))
         vapor = (p = cond.p, T = cond.T, z = y, phase = Val(:vapor))
-        forces = static_force_coefficients(eos, cond, F)
+        # Coefficients depend on pressure and temperature, not the seeded
+        # K-values or vapor fraction. Keep them numeric in the unknown Jacobian
+        # instead of filling both phase matrices with zero-derivative duals.
+        force_type = Base.promote_eltype(cond.p, cond.T)
+        forces = static_force_coefficients(eos, cond, force_type)
         Z_l, scalars_l = prep(eos, liquid, forces)
         Z_v, scalars_v = prep(eos, vapor, forces)
         lnphi_l = static_fugacity_coefficients(
