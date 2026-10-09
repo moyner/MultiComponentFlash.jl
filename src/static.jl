@@ -107,7 +107,9 @@ end
 Convert a generic cubic EOS to an isbits representation for accelerator kernels.
 """
 function make_eos_immutable(eos::GenericCubicEOS{T, R, N}; float_type = missing) where {T, R, N}
-    mixture = static_mixture(eos.mixture)
+    mixture = static_mixture(eos.mixture; float_type = float_type)
+    type = static_cubic_type(eos.type; float_type = float_type)
+    C = ismissing(float_type) ? identity : float_type
     volume_shift = eos.volume_shift
     if !isnothing(volume_shift)
         if ismissing(float_type)
@@ -118,14 +120,27 @@ function make_eos_immutable(eos::GenericCubicEOS{T, R, N}; float_type = missing)
         volume_shift = SVector{N, v_type}(volume_shift)
     end
     return GenericCubicEOS(
-        eos.type,
+        type,
         mixture,
-        eos.m_1,
-        eos.m_2,
-        eos.ω_a,
-        eos.ω_b,
+        C(eos.m_1),
+        C(eos.m_2),
+        C(eos.ω_a),
+        C(eos.ω_b),
         volume_shift
     )
+end
+
+# Most cubic types carry no mutable data. Søreide-Whitson additionally stores
+# component classifications, which must be embedded in the kernel argument.
+static_cubic_type(type; float_type = missing) = type
+
+function static_cubic_type(sw::SoreideWhitson{T}; float_type = missing) where T
+    R = ismissing(float_type) ? T : float_type
+    N = length(sw.component_types)
+    return SoreideWhitson{R}(
+        map(R, sw.A), map(R, sw.A_mw), map(R, sw.alphas),
+        map(R, sw.water_coefficients), R(sw.molality), R(sw.T_co2),
+        SVector{N, COMPONENT_ENUM}(sw.component_types))
 end
 
 """Return immutable Wilson K-values for static storage."""
@@ -139,6 +154,10 @@ end
 # Val phase tags keep Symbol construction and dynamic dispatch out of kernels.
 @inline phase_symbol(::Val{phase}) where phase = phase
 
+@inline function set_phase(cond, phase::Val)
+    return (p = cond.p, T = cond.T, z = cond.z, phase = phase)
+end
+
 @inline function pick_root(eos, roots, cond, forces, scalars, ::Val{:liquid})
     min_root, _ = root_bounds(roots, minimum_allowable_root(eos, forces, scalars))
     return min_root
@@ -150,7 +169,17 @@ end
 end
 
 """Immutable force coefficients for accelerator kernels."""
-@inline function static_force_coefficients(eos::GenericCubicEOS{E, R, N}, cond,
+@inline function static_force_coefficients(eos::GenericCubicEOS, cond, ::Type{T}) where T
+    if forces_per_phase(eos)
+        liquid = static_phase_force_coefficients(eos, set_phase(cond, Val(:liquid)), T)
+        vapor = static_phase_force_coefficients(eos, set_phase(cond, Val(:vapor)), T)
+        return (liquid = liquid, vapor = vapor)
+    else
+        return static_phase_force_coefficients(eos, cond, T)
+    end
+end
+
+@inline function static_phase_force_coefficients(eos::GenericCubicEOS{E, R, N}, cond,
         ::Type{T}) where {E, R, N, T}
     A_i_static = SVector{N, T}(ntuple(i -> A_i(eos, cond, i), Val(N)))
     B_i_static = SVector{N, T}(ntuple(i -> B_i(eos, cond, i), Val(N)))
@@ -520,7 +549,7 @@ end
     K_out = report.stable ? K_liquid : static_divide(y, x)
     # Only a complete, converged two-sided test can establish a new reference.
     # Skipped trial phases are reported as stable above, but prove no such thing.
-    if update_bypass && check_liquid && check_vapor && report.stable &&
+    if update_bypass && !forces_per_phase(eos) && check_liquid && check_vapor && report.stable &&
             report.liquid.trivial && report.vapor.trivial
         critical_distance = static_michelsen_critical_point_measure(
             eos, cond.p, cond.T, cond.z)

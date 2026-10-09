@@ -120,6 +120,66 @@ end
     @test report.converged
     @test isfinite(vapor_fraction)
     @test all(isfinite, K)
+
+    # Both simulator flash paths must retain the phase-specific interactions.
+    static_cond = (p = cond.p, T = cond.T, z = SVector{2}(cond.z))
+    static_eos = make_eos_immutable(eos)
+    @test isbitstype(typeof(static_eos))
+    @test static_eos.type.component_types == eos.type.component_types
+    @test static_eos.type.molality == molality
+    @test static_eos.type.water_coefficients == eos.type.water_coefficients
+    @test make_eos_immutable(static_eos) == static_eos
+    static_forces = MCF.static_force_coefficients(static_eos, static_cond, Float64)
+    for phase in (:liquid, :vapor)
+        phase_cond = MCF.set_phase(static_cond, phase)
+        host_forces = MCF.force_coefficients(eos, phase_cond)
+        immutable_forces = MCF.get_force_coefficients(static_forces, static_eos, phase_cond)
+        @test immutable_forces.A_ij ≈ host_forces.A_ij
+        @test immutable_forces.B_i ≈ host_forces.B_i
+    end
+    V_static, K_static = MCF.flash_2ph_immutable(static_eos, static_cond)
+    @test V_static ≈ vapor_fraction rtol = 1e-7
+    @test K_static ≈ K rtol = 1e-7
+    mixture_flash = MCF.flashed_mixture_2ph(eos, cond)
+    @test mixture_flash.V ≈ vapor_fraction
+    @test isfinite(mixture_flash.liquid.Z)
+    @test isfinite(mixture_flash.vapor.Z)
+
+    ad_cond = (p = MCF.ForwardDiff.Dual{Nothing}(cond.p, 1.0),
+        T = cond.T, z = static_cond.z)
+    V_ad, _ = MCF.implicit_flash_derivatives(static_eos, static_cond, ad_cond, V_static, K_static)
+    h = 100.0
+    V_plus, _ = MCF.flash_2ph_immutable(static_eos, (; static_cond..., p = cond.p + h))
+    V_minus, _ = MCF.flash_2ph_immutable(static_eos, (; static_cond..., p = cond.p - h))
+    @test MCF.ForwardDiff.partials(V_ad)[1] ≈ (V_plus - V_minus)/(2h) rtol = 1e-4
+end
+
+@testset "Immutable Søreide–Whitson component classifications" begin
+    mixture = MultiComponentMixture(["Water", "CarbonDioxide", "Nitrogen",
+        "HydrogenSulfide", "Methane", "Hydrogen"])
+    sw = SoreideWhitson(mixture; molality = 1.5, T_co2 = 301.0,
+        A = (1.2, 1.3, -0.2), water_coefficients = (0.45, 0.98, 0.004))
+    eos = GenericCubicEOS(mixture, sw; volume_shift = fill(0.1, 6))
+    for float_type in (Float64, Float32)
+        immutable = make_eos_immutable(eos; float_type = float_type)
+        @test isbitstype(typeof(immutable))
+        @test eltype(immutable.type.A) == float_type
+        @test typeof(immutable.type.molality) == float_type
+        @test eltype(immutable.volume_shift) == float_type
+        @test typeof(immutable.mixture.properties[1].mw) == float_type
+        @test immutable.type.component_types == sw.component_types
+        @test immutable.type.T_co2 == float_type(sw.T_co2)
+        @test immutable.type.A == map(float_type, sw.A)
+        @test immutable.type.A_mw == map(float_type, sw.A_mw)
+        @test immutable.type.alphas == map(float_type, sw.alphas)
+        @test immutable.type.water_coefficients == map(float_type, sw.water_coefficients)
+        cond = (p = 1e6, T = 350.0, z = SVector{6}(fill(1/6, 6)))
+        for phase in (:liquid, :vapor), i in 1:6, j in 1:6
+            phase_cond = MCF.set_phase(cond, phase)
+            @test MCF.binary_interaction(immutable, i, j, phase_cond) ≈
+                MCF.binary_interaction(eos, i, j, phase_cond) rtol = 1e-6
+        end
+    end
 end
 
 @testset "Cubic root degeneracies" begin
