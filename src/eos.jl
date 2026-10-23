@@ -97,8 +97,8 @@ minimum_allowable_root(eos, forces, scalars) = 1e-16
 end
 
 @inline function root_bounds(roots, minimum_root)
-    max_root = -Inf
-    min_root = Inf
+    max_root = oftype(minimum_root, -Inf)
+    min_root = oftype(minimum_root, Inf)
     for root in roots
         max_root = max(max_root, root)
         if root > minimum_root
@@ -364,9 +364,9 @@ function solve_cubic_positive_roots(a, b, c)
     single_root = M > 0
     if single_root
         # Single real root
-        S = -sign(R)*(abs(R) + sqrt(M))^(1/3)
+        S = -sign(R)*cbrt(abs(R) + sqrt(M))
         if S == 0
-            T = 0
+            T = zero(S)
         else
             T = Q/S
         end
@@ -381,9 +381,10 @@ function solve_cubic_positive_roots(a, b, c)
         # repeated root, where acos is still well defined analytically.
         acos_arg = clamp(R/sqrt(Q^3), -one(R), one(R))
         theta = acos(acos_arg)
+        two_pi = oftype(theta, 2*pi)
         r1 = -(2*sqrt(Q)*cos(theta/3)) - a/3
-        r2 = -(2*sqrt(Q)*cos((theta + 2*pi)/3)) - a/3
-        r3 = -(2*sqrt(Q)*cos((theta - 2*pi)/3)) - a/3
+        r2 = -(2*sqrt(Q)*cos((theta + two_pi)/3)) - a/3
+        r3 = -(2*sqrt(Q)*cos((theta - two_pi)/3)) - a/3
         return (r1, r2, r3)
     end
 end

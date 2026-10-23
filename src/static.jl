@@ -2,7 +2,7 @@
     StaticConfig()
 
 Marker returned by `flash_storage(...; static=true)`. It selects the immutable,
-stack-oriented SSI implementation used in accelerator kernels.
+stack-oriented flash implementation used in accelerator kernels.
 """
 struct StaticConfig end
 
@@ -10,7 +10,8 @@ struct StaticConfig end
 @inline use_dict_storage(::StaticConfig) = false
 
 function flash_storage(eos::GenericCubicEOS, cond, method, config::StaticConfig; kwarg...)
-    method isa SSIFlash || throw(ArgumentError("The static flash currently supports SSIFlash only."))
+    method isa Union{SSIFlash, NewtonFlash} || throw(ArgumentError(
+        "The static flash supports SSIFlash and NewtonFlash."))
     return config
 end
 
@@ -22,8 +23,8 @@ Run the immutable, accelerator-friendly two-phase flash implementation.
 scalar vapor fraction. When `storage` is omitted, a static storage marker is
 created automatically.
 
-Pass `V0=Inf` to skip stability testing and perform a negative flash, allowing
-the vapor fraction to converge outside `[0, 1]`.
+With `SSIFlash`, pass `V0=Inf` to skip stability testing and perform a negative
+flash, allowing the vapor fraction to converge outside `[0, 1]`.
 
 Set `return_stability=true` to additionally return a
 [`StaticStabilityResult`](@ref). Its immutable `storage` can be supplied as
@@ -33,8 +34,14 @@ and composition bounds as the mutable simulator integration.
 Set `stability_bypass=false` to force a fresh stability test even when storage
 is supplied; `return_stability=true` still records a new reference if eligible.
 
-The immutable path currently supports `SSIFlash` and generic cubic EOS values
-converted with [`make_eos_immutable`](@ref).
+The immutable path supports `SSIFlash` and `NewtonFlash` with generic cubic
+EOS values converted with [`make_eos_immutable`](@ref). The static Newton method
+minimizes Gibbs energy in component phase amounts, rejecting a nonpositive
+Hessian, nonpositive phase amounts or an increase in Gibbs energy. It returns
+`report.converged=false` on a rejected step or iteration limit. Use a short
+Newton attempt from a previous split and fall back to SSI on failure.
+Newton requires positive component amounts in both phases and uses static
+factorization for up to 24 components; larger systems return nonconvergence.
 """
 @inline function flash_2ph_immutable(eos, c, V0 = NaN;
         method = SSIFlash(),
@@ -367,7 +374,7 @@ end
 
 @inline function flash_2ph_impl!(::StaticConfig, K,
         eos::GenericCubicEOS{E, R, N}, c, V;
-        method::SSIFlash = SSIFlash(),
+        method::Union{SSIFlash, NewtonFlash} = SSIFlash(),
         maxiter::Int = 25000,
         tolerance::Float64 = 1e-8,
         verbose::Bool = false,
@@ -408,6 +415,9 @@ end
     converged = false
     if stable
         iteration = 0
+    elseif method isa NewtonFlash
+        V, K, converged, iteration = static_newton_flash(
+            eos, cond, K, V, tolerance, maxiter, method.dMax)
     else
         iteration = 1
         if isnan(V) || negative_flash
