@@ -526,21 +526,25 @@ end
         report = StabilityReport(true, true, true, true)
         return StaticStabilityResult(true, report, K, storage, true)
     end
-    vapor_phase = (p = cond.p, T = cond.T, z = cond.z, phase = Val(:vapor))
-    f_z_vapor = static_fugacities(eos, vapor_phase, forces, F)
+    # A two-sided test uses two trial phases against the SAME feed tangent.
+    # Switching the reference with the trial can hide a cross-phase instability.
+    if stability_reference_is_vapor(eos, cond, forces)
+        reference = set_phase(cond, Val(:vapor))
+        f_z = static_fugacities(eos, reference, forces, F)
+    else
+        reference = set_phase(cond, Val(:liquid))
+        f_z = static_fugacities(eos, reference, forces, F)
+    end
     K_wilson = initial_guess_K(eos, cond, StaticConfig())
     if check_vapor
         stable_vapor, trivial_vapor, i_v, K_vapor, y = static_michelsen_test(
-            f_z_vapor, cond.z, K_wilson, eos, cond, forces, Val(true); kwarg...)
+            f_z, cond.z, K_wilson, eos, cond, forces, Val(true); kwarg...)
     else
         stable_vapor, trivial_vapor, i_v, K_vapor, y = true, true, 0, K_wilson, cond.z
     end
     if check_liquid
-        liquid_phase = (p = cond.p, T = cond.T, z = cond.z, phase = Val(:liquid))
-        f_z_liquid = forces_per_phase(eos) ?
-            static_fugacities(eos, liquid_phase, forces, F) : f_z_vapor
         stable_liquid, trivial_liquid, i_l, K_liquid, x = static_michelsen_test(
-            f_z_liquid, cond.z, K_wilson, eos, cond, forces, Val(false); kwarg...)
+            f_z, cond.z, K_wilson, eos, cond, forces, Val(false); kwarg...)
     else
         stable_liquid, trivial_liquid, i_l, K_liquid, x = true, true, 0, K_wilson, cond.z
     end

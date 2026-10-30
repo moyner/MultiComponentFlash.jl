@@ -23,6 +23,20 @@ function stability_2ph!(storage, K, eos, c; kwarg...)
     return stability_2ph!(storage, K, eos, c, FlashConfig(); kwarg...)
 end
 
+@inline function stability_reference_is_vapor(eos, cond, forces)
+    liquid = set_phase(cond, Val(:liquid))
+    vapor = set_phase(cond, Val(:vapor))
+    Z_l, scalars_l = prep(eos, liquid, forces)
+    Z_v, scalars_v = prep(eos, vapor, forces)
+    difference = zero(cond.p)
+    @inbounds for i in eachindex(cond.z)
+        lnphi_l = component_fugacity_coefficient(eos, liquid, i, Z_l, forces, scalars_l)
+        lnphi_v = component_fugacity_coefficient(eos, vapor, i, Z_v, forces, scalars_v)
+        difference += cond.z[i]*(lnphi_l - lnphi_v)
+    end
+    return difference > zero(difference)
+end
+
 function stability_2ph!(storage, K, eos, c, config::FlashConfig;
         verbose::Bool = false,
         extra_out::Bool = false,
@@ -39,7 +53,12 @@ function stability_2ph!(storage, K, eos, c, config::FlashConfig;
     vapor = (p = p, T = T, z = y, phase = :vapor)
     current_as_liquid = (p = p, T = T, z = z, phase = :liquid)
     current_as_vapor = (p = p, T = T, z = z, phase = :vapor)
-    mixture_fugacities!(f_z, eos, current_as_vapor, forces)
+    # Both trial phases must be compared with ONE tangent plane. Choose the
+    # homogeneous feed with the lower Gibbs energy, including phase-dependent
+    # EOS coefficients, and retain its chemical potentials for both trials.
+    reference_is_vapor = stability_reference_is_vapor(eos, c, forces)
+    reference = reference_is_vapor ? current_as_vapor : current_as_liquid
+    mixture_fugacities!(f_z, eos, reference, forces)
     if check_vapor
         wilson_estimate!(K, eos, p, T)
         v = michelsen_test!(vapor, f_z, f_xy, vapor.z, z, K, eos, c, forces, Val(true), config; kwarg...)
@@ -48,12 +67,6 @@ function stability_2ph!(storage, K, eos, c, config::FlashConfig;
     end
     stable_vapor, trivial_vapor, i_v = v
     if check_liquid
-        if forces_per_phase(eos)
-            # Need to recalculate fugacities for the liquid phase if the flash
-            # uses e.g. different bic coefficients for each phase. Otherwise,
-            # these are already ok.
-            mixture_fugacities!(f_z, eos, current_as_liquid, forces)
-        end
         wilson_estimate!(K, eos, p, T)
         l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false), config; kwarg...)
     else
@@ -104,6 +117,7 @@ function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces,
         maxiter = 1000
     )
     trivial = false
+    converged = false
     S = 1.0
     iter = 0
     done = false
@@ -138,12 +152,11 @@ function michelsen_test!(c_inside, f_z, f_xy, xy, z, K, eos, cond, forces,
         ok = trivial || converged
         done = ok || iter == maxiter
         if done && !ok
-            trivial = true
             if print_output(config)
-                @warn "Stability test failed to converge in $maxiter iterations. Assuming stability." cond xy K_norm R_norm K
+                @warn "Stability test failed to converge in $maxiter iterations." cond xy K_norm R_norm K
             end
         end
     end
-    stable = trivial || S <= 1.0 + tol_sat
+    stable = trivial || (converged && S <= 1.0 + tol_sat)
     return (stable, trivial, iter)
 end
