@@ -183,7 +183,7 @@ Pre-allocate storage for `flash_2ph!`.
 # Keyword arguments
 - `method = SSIFlash()`: Flash method to use. Can be `SSIFlash()`, `NewtonFlash()` or `SSINewtonFlash()`.
 - `static = false`: Return fully static, GPU-compatible storage when `true`. The
-  static path currently supports `SSIFlash`.
+  static path supports `SSIFlash` and `NewtonFlash`.
 - `inc_jac`: Allocate storage for Newton/Jacobian. Required for Newton (and defaults to `true` for that method) or for `diff_externals`.
 - `diff_externals = false`: Allocate storage for matrix inversion required to produce partial derivatives of flash using `set_partials`.
 

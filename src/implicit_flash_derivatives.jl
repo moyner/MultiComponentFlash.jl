@@ -34,13 +34,8 @@ accelerator use, pass an immutable EOS from `make_eos_immutable`.
         eos::GenericCubicEOS{E, R, N}, numeric_cond, ad_cond,
         V_numeric, K_numeric::SVector{N}) where {E, R, N}
     u = static_flash_unknowns(K_numeric, V_numeric)
-
-    # Seed only the equilibrium unknowns for the primary Jacobian. The
-    # condition here is numeric, so no nested AD types are needed.
-    u_seeded = seed_static_flash_unknowns(u)
-    residual_seeded = static_equilibrium_residual(eos, numeric_cond, u_seeded)
-    jacobian = static_flash_jacobian(residual_seeded)
-    residual_numeric = static_flash_residual_values(residual_seeded)
+    residual_numeric, jacobian = static_flash_system(eos, numeric_cond,
+        K_numeric, V_numeric)
 
     # The constant residual is subtracted so the returned primals remain the
     # converged numeric solution, even when its tolerance is finite.
@@ -52,6 +47,15 @@ accelerator use, pass an immutable EOS from `make_eos_immutable`.
     correction = jacobian \ (residual_ad - residual_numeric)
     updated = SVector{N+1, T}(u_ad - correction)
     return updated[N+1], static_flash_K(updated)
+end
+
+@inline function static_flash_system(eos, numeric_cond, K, V)
+    # Seed only the equilibrium unknowns. The condition is numeric, so no
+    # nested AD types are needed. Shared by implicit derivatives and Newton.
+    u = static_flash_unknowns(K, V)
+    residual = static_equilibrium_residual(eos, numeric_cond,
+        seed_static_flash_unknowns(u))
+    return static_flash_residual_values(residual), static_flash_jacobian(residual)
 end
 
 """

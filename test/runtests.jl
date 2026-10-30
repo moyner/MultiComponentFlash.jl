@@ -1,6 +1,7 @@
 include("test_setup.jl")
 include("eos_equations.jl")
 include("implicit_derivatives.jl")
+include("static_newton.jl")
 include("stability_reference.jl")
 
 @testset "Rachford-Rice" begin

@@ -59,6 +59,7 @@ module MultiComponentFlash
     include("static.jl")
     include("implicit_flash_derivatives.jl")
     using .ImplicitFlashDerivatives: implicit_flash_derivatives
+    include("static_newton.jl")
     include("tables.jl")
 
     include("flow_coupler.jl")
