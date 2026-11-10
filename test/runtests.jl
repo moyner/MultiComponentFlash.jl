@@ -3,6 +3,7 @@ include("eos_equations.jl")
 include("implicit_derivatives.jl")
 include("static_newton.jl")
 include("stability_reference.jl")
+include("static_eigenvalues.jl")
 
 @testset "Rachford-Rice" begin
     test_rachford_rice()

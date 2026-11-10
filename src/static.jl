@@ -238,8 +238,57 @@ end
     return stable
 end
 
-@inline static_minimum_eigenvalue(B::SMatrix) =
-    minimum(eigvals(Symmetric(B)))
+@inline function static_minimum_eigenvalue(B::SMatrix{N, N, T}) where {N, T}
+    if N <= 3
+        return minimum(eigvals(Symmetric(B)))
+    end
+    # StaticArrays falls back to allocating LAPACK calls above size three.
+    # Cyclic Jacobi rotations keep this small symmetric problem on the device.
+    scale = maximum(abs, B)
+    isfinite(scale) || return T(NaN)
+    iszero(scale) && return zero(T)
+    A = MMatrix(B/scale)
+    tolerance = eps(T)
+    @inbounds for _ in 1:50
+        for q in 2:N, p in 1:(q - 1)
+            apq = A[p, q]
+            abs(apq) <= tolerance && continue
+            tau = (A[q, q] - A[p, p])/(2*apq)
+            t = copysign(inv(abs(tau) + hypot(one(T), tau)), tau)
+            c = inv(sqrt(one(T) + t*t))
+            s = t*c
+            A[p, p] -= t*apq
+            A[q, q] += t*apq
+            A[p, q] = A[q, p] = zero(T)
+            for k in 1:N
+                if k != p && k != q
+                    akp, akq = A[k, p], A[k, q]
+                    A[k, p] = A[p, k] = c*akp - s*akq
+                    A[k, q] = A[q, k] = s*akp + c*akq
+                end
+            end
+        end
+        distance = T(Inf)
+        residual = zero(T)
+        for i in 1:N
+            radius = zero(T)
+            for j in 1:N
+                if i != j
+                    radius += abs(A[i, j])
+                end
+            end
+            residual = max(residual, radius)
+            # A Gershgorin lower bound avoids enlarging the bypass region
+            # by the remaining off-diagonal roundoff.
+            distance = min(distance, A[i, i] - radius)
+        end
+        if residual <= N*tolerance
+            return scale*distance
+        end
+    end
+    # A failed eigensolve must not arm a single-phase stability bypass.
+    return T(NaN)
+end
 
 """Immutable Michelsen critical-point distance used by the stability bypass."""
 @generated function static_fugacity_coefficients(
