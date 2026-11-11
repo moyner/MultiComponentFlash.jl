@@ -11,14 +11,18 @@ definitions for the terms (they are, after all, all cubic in form). References:
  2. [Simulation of Gas Condensate Reservoir Performance  by K.H. Coats](https://doi.org/10.2118/10512-PA)
 
 """
-struct GenericCubicEOS{T, R, N, V, M<:MultiComponentMixture{R, N}} <: AbstractCubicEOS
+struct GenericCubicEOS{T, R, N, V, M<:MultiComponentMixture{R, N}, A, B} <: AbstractCubicEOS
     type::T
     mixture::M
     m_1::R
     m_2::R
-    ω_a::R
-    ω_b::R
+    ω_a::A
+    ω_b::B
     volume_shift::V
+end
+
+function GenericCubicEOS{T, R, N, V, M}(type, mixture, m_1, m_2, ω_a, ω_b, volume_shift) where {T, R, N, V, M}
+    return GenericCubicEOS{T, R, N, V, M, R, R}(type, mixture, m_1, m_2, ω_a, ω_b, volume_shift)
 end
 
 """
@@ -161,12 +165,19 @@ end
 
 
 """
-    GenericCubicEOS(mixture)
-    GenericCubicEOS(mixture, PengRobinson())
+    GenericCubicEOS(mixture, type = PengRobinson();
+        omega_a = nothing, omega_b = nothing, m1 = nothing, m2 = nothing,
+        volume_shift = nothing)
 
+Instantiate a generic cubic equation of state for a `MultiComponentMixture`.
 
-Instantiate a generic cubic equation-of-state for a `MultiComponentMixture` and
-a specified EOS.
+- `omega_a` and `omega_b` override the dimensionless attraction and covolume
+  coefficients. Pass a scalar for all components or an `NTuple` of scalars in
+  mixture order. Uniform tuples are stored as scalars.
+- `m1` and `m2` override the two scalar constants in the cubic denominator.
+- `volume_shift` supplies one dimensionless volume shift per component.
+
+A coefficient override of `nothing` uses the selected EOS type's default.
 
 Currently supported choices for second argument:
 
@@ -175,18 +186,41 @@ Currently supported choices for second argument:
     3. `ZudkevitchJoffe()`
     4. `RedlichKwong()`
     5. `SoaveRedlichKwong()`
+    6. `SoreideWhitson(mixture)`
 """
-function GenericCubicEOS(mixture, type = PengRobinson(); kwarg...)
+function GenericCubicEOS(mixture, type = PengRobinson();
+        omega_a = nothing,
+        omega_b = nothing,
+        m1 = nothing,
+        m2 = nothing,
+        kwarg...
+    )
     ω_a, ω_b, m_1, m_2 = static_coefficients(type)
+    ω_a = something(omega_a, ω_a)
+    ω_b = something(omega_b, ω_b)
+    m_1 = something(m1, m_1)
+    m_2 = something(m2, m_2)
     setup = (ω_a = ω_a, ω_b = ω_b, m_1 = m_1, m_2 = m_2, type = type)
     return GenericCubicEOS(setup, mixture; kwarg...)
 end
 
-function GenericCubicEOS(setup::NamedTuple, mixture; volume_shift = nothing)
+function GenericCubicEOS(setup::NamedTuple, mixture::MultiComponentMixture{R, N};
+        volume_shift = nothing
+    ) where {R, N}
     if !isnothing(volume_shift)
-        length(volume_shift) == number_of_components(mixture) || throw(ArgumentError("Volume shift must have one value per component."))
+        length(volume_shift) == N || throw(ArgumentError("Volume shift must have one value per component."))
     end
-    return GenericCubicEOS(setup.type, mixture, setup.m_1, setup.m_2, setup.ω_a, setup.ω_b, volume_shift)
+    ω_a = cubic_coefficient(setup.ω_a, R, Val(N))
+    ω_b = cubic_coefficient(setup.ω_b, R, Val(N))
+    return GenericCubicEOS(setup.type, mixture, R(setup.m_1), R(setup.m_2), ω_a, ω_b, volume_shift)
+end
+
+cubic_coefficient(value::Number, ::Type{R}, ::Val) where R = convert(R, value)
+
+function cubic_coefficient(values::Tuple, ::Type{R}, ::Val{N}) where {R, N}
+    length(values) == N || throw(ArgumentError("A cubic coefficient tuple must have one value per component."))
+    coeff = ntuple(i -> convert(R, values[i]), Val(N))
+    return N > 0 && all(==(first(coeff)), coeff) ? first(coeff) : coeff
 end
 
 struct KValuesEOS{T, R, N, V, M<:MultiComponentMixture{R, N}} <: AbstractEOS

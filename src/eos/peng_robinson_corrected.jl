@@ -13,5 +13,5 @@ function weight_ai(eos::GenericCubicEOS{PengRobinsonCorrected}, cond, i)
         D = (0.37464 + 1.54226*a - 0.26992*aa)
     end
     tmp = 1.0 + D*(1.0-T_r^0.5)
-    return eos.ω_a*(tmp*tmp);
+    return component_coefficient(eos.ω_a, i)*(tmp*tmp);
 end
