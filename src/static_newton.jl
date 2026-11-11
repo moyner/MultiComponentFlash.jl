@@ -1,6 +1,4 @@
-# Phase-amount Gibbs minimization for the short reuse attempt described in
-# Belkadi et al. (2011), SPE 142132, Section 2.1. The caller handles fallback.
-@inline function static_newton_flash(eos, cond, K, V, tolerance, maxiter, dMax)
+@inline function static_newton_flash(eos, cond, K, V, tolerance, maxiter, dMax, forces)
     if isinf(V) || !(
             all(k -> isfinite(k) && k > 0, K) &&
                 all(z -> isfinite(z) && z > 0, cond.z)
@@ -23,7 +21,7 @@
         initial_V * vapor_mole_fraction(liquid_mole_fraction(zi, ki, initial_V), ki)
     end
     liquid, vapor, converged, iterations = static_gibbs_newton(
-        eos, cond, liquid, vapor, tolerance; maxiter = maxiter, dMax = dMax
+        eos, cond, liquid, vapor, tolerance, forces; maxiter = maxiter, dMax = dMax
     )
     total_liquid, total_vapor = sum(liquid), sum(vapor)
     next_K = (vapor / total_vapor) ./ (liquid / total_liquid)
@@ -42,33 +40,26 @@ end
 
 @inline function static_newton_system(
         eos, cond, liquid::SVector{N, F},
-        vapor::SVector{N, F}
+        vapor::SVector{N, F}, forces = static_force_coefficients(eos, cond, F)
     ) where {N, F}
-    L, V = sum(liquid), sum(vapor)
-    K = (vapor / V) ./ (liquid / L)
-    residual, jacobian = ImplicitFlashDerivatives.static_flash_system(
-        eos, cond, K, V / (L + V)
-    )
-    gradient = SVector{N, F}(ntuple(i -> residual[i], Val(N)))
     scale = sqrt.(liquid .* (vapor ./ cond.z))
-    # Reuse the (K, beta) Jacobian of the two-phase implicit derivatives.
-    # For v_i = z_i - l_i, d(log K_i)/dv_j = delta_ij*(1/v_i + 1/l_i)
-    # - 1/V - 1/L, and d(beta)/dv_j = 1/(L + V). Apply this chain rule
-    # directly to the scaled Hessian to avoid large trace-component reciprocals.
-    row_correction = SVector{N, F}(
-        ntuple(Val(N)) do i
-            total = sum(j -> jacobian[i, j] * K[j], 1:N)
-            jacobian[i, N + 1] / (L + V) - (inv(L) + inv(V)) * total
-        end
-    )
-    hessian = SMatrix{N, N, F}(
-        ntuple(Val(N * N)) do index
-            row = mod1(index, N)
-            col = (index - 1) ÷ N + 1
-            (scale[row] / scale[col]) * jacobian[row, col] * K[col] +
-                scale[row] * scale[col] * row_correction[row]
-        end
-    )
+    # Avoid capturing the Dual type in the seed closures.
+    vapor_ad = SVector(ntuple(Val(N)) do i
+        seed = ForwardDiff.Partials{N, F}(
+            ntuple(j -> ifelse(i == j, scale[i], zero(F)), Val(N)))
+        ForwardDiff.Dual{Nothing}(vapor[i], seed)
+    end)
+    liquid_ad = map(liquid, vapor_ad) do li, vi
+        typeof(vi)(li, -ForwardDiff.partials(vi))
+    end
+    potentials = static_newton_phase_potentials(eos, cond, vapor_ad, Val(:vapor), forces) -
+        static_newton_phase_potentials(eos, cond, liquid_ad, Val(:liquid), forces)
+    gradient = map(ForwardDiff.value, potentials)
+    hessian = SMatrix{N, N, F}(ntuple(Val(N * N)) do index
+        row = mod1(index, N)
+        col = (index - 1) ÷ N + 1
+        scale[row] * ForwardDiff.partials(potentials[row])[col]
+    end)
     return gradient, (hessian + transpose(hessian)) / 2, scale
 end
 
@@ -76,9 +67,8 @@ end
 
 @inline function static_gibbs_newton(
         eos, cond, liquid::SVector{N, F},
-        vapor::SVector{N, F}, tolerance; maxiter = 3, dMax = 1.0
+        vapor::SVector{N, F}, tolerance, forces; maxiter = 3, dMax = 1.0
     ) where {N, F}
-    forces = static_force_coefficients(eos, cond, F)
     # StaticArrays' small Cholesky is allocation-free and accelerator compatible.
     # Larger systems retain the ordinary flash instead of a dynamic factorization.
     N <= 24 || return liquid, vapor, false, 0
@@ -86,7 +76,7 @@ end
         if !(static_positive_phase_amounts(liquid) && static_positive_phase_amounts(vapor))
             return liquid, vapor, false, iteration
         end
-        gradient, H, scale = static_newton_system(eos, cond, liquid, vapor)
+        gradient, H, scale = static_newton_system(eos, cond, liquid, vapor, forces)
         all(isfinite, gradient) && all(isfinite, H) ||
             return liquid, vapor, false, iteration
         factor = cholesky(Symmetric(H); check = false)

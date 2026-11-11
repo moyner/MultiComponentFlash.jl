@@ -97,7 +97,7 @@ static_newton_allocations(eos, cond, K, V) = @allocated flash_2ph!(
     end
 end
 
-@testset "Gibbs Hessian from the two-phase derivative Jacobian" begin
+@testset "Scaled phase-amount Gibbs Hessian" begin
     MCF = MultiComponentFlash
     eos = make_eos_immutable(get_test_eos())
     cond = (p = 1.0e6, T = 300.0, z = @SVector [0.5, 0.3, 0.2])
@@ -117,4 +117,38 @@ end
     @test isposdef(Symmetric(hessian))
     @test scale .* (hessian \ (-scale .* gradient)) ≈
         independent_hessian \ (-gradient) rtol = 1.0e-10
+end
+
+@testset "SW trace-component Gibbs Hessian" begin
+    MCF = MultiComponentFlash
+    mixture = MultiComponentMixture(["Water", "Methane", "Hydrogen"])
+    eos = make_eos_immutable(GenericCubicEOS(mixture, SoreideWhitson(mixture)))
+    water, gas_hydrogen = 0.1, 0.8
+    cond = (p = 15e6, T = 320.0, z = SVector(water,
+        (1 - water)*(1 - gas_hydrogen), (1 - water)*gas_hydrogen))
+    V, K = flash_2ph_immutable(eos, cond; z_min = nothing)
+    x = cond.z ./ (1 .+ V .* (K .- 1))
+    y = K .* x
+    liquid, vapor = (1 - V)*x, V*y
+    @test minimum(liquid) < 1e-30
+    forces = MCF.static_force_coefficients(eos, cond, Float64)
+    function gibbs(delta)
+        l, v = liquid - delta, vapor + delta
+        mu_l = MCF.static_newton_phase_potentials(eos, cond, l, Val(:liquid), forces)
+        mu_v = MCF.static_newton_phase_potentials(eos, cond, v, Val(:vapor), forces)
+        return sum(l .* mu_l) + sum(v .* mu_v)
+    end
+    gradient, hessian, scale = MCF.static_newton_system(eos, cond, liquid, vapor)
+    @test gradient ≈ ForwardDiff.gradient(gibbs, zero(cond.z)) atol = 1e-10
+    expected = Diagonal(scale)*ForwardDiff.hessian(gibbs, zero(cond.z))*Diagonal(scale)
+    @test hessian ≈ expected atol = 1e-10 rtol = 1e-9
+    @test isposdef(Symmetric(hessian))
+    nearby = (p = 15.001e6, T = 320.01, z = cond.z)
+    V_new, K_new, report = flash_2ph!(MCF.StaticConfig(), K, eos, nearby, V;
+        method = NewtonFlash(dMax = 1.0), maxiter = 3,
+        extra_out = true, z_min = nothing)
+    V_full, K_full = flash_2ph_immutable(eos, nearby; z_min = nothing)
+    @test report.converged
+    @test V_new ≈ V_full atol = 1e-9
+    @test K_new ≈ K_full rtol = 1e-8
 end
