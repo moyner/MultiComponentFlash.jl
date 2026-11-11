@@ -14,7 +14,7 @@ function weight_ai(eos::GenericCubicEOS{T}, cond, i) where T<:SoreideWhitson
     else
         α_half = 1.0 + (0.37464 + 1.54226*a - 0.26992*a*a)*(1-T_r^0.5)
     end
-    return eos.ω_a*(α_half*α_half)
+    return component_coefficient(eos.ω_a, i)*(α_half*α_half)
 end
 
 function binary_interaction(eos::GenericCubicEOS{T}, i::Int, j::Int, cond) where T<:SoreideWhitson

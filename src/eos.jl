@@ -27,14 +27,17 @@ function static_coefficients(::AbstractGeneralizedCubic)
     return (0.4274802327, 0.08664035, 0.0, 1.0)
 end
 
+@inline component_coefficient(value::Number, i) = value
+Base.@propagate_inbounds component_coefficient(values::Tuple, i) = values[i]
+
 function weight_bi(eos::GenericCubicEOS{T, R}, cond, i) where {T<:AbstractGeneralizedCubic, R}
-    return eos.ω_b
+    return component_coefficient(eos.ω_b, i)
 end
 
 function weight_ai(eos::GenericCubicEOS{T, R}, cond, i) where {T<:AbstractGeneralizedCubic, R}
     mix = eos.mixture
     T_r = reduced_temperature(mix, cond, i)
-    return eos.ω_a*T_r^(-1/2)
+    return component_coefficient(eos.ω_a, i)*T_r^(-1/2)
 end
 
 # Peng Robinson and variants

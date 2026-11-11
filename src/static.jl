@@ -131,8 +131,8 @@ function make_eos_immutable(eos::GenericCubicEOS{T, R, N}; float_type = missing)
         mixture,
         C(eos.m_1),
         C(eos.m_2),
-        C(eos.ω_a),
-        C(eos.ω_b),
+        map(C, eos.ω_a),
+        map(C, eos.ω_b),
         volume_shift
     )
 end
