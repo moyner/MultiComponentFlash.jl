@@ -44,31 +44,27 @@ end
         eos, cond, liquid::SVector{N, F},
         vapor::SVector{N, F}
     ) where {N, F}
-    L, V = sum(liquid), sum(vapor)
-    K = (vapor / V) ./ (liquid / L)
-    residual, jacobian = ImplicitFlashDerivatives.static_flash_system(
-        eos, cond, K, V / (L + V)
-    )
-    gradient = SVector{N, F}(ntuple(i -> residual[i], Val(N)))
     scale = sqrt.(liquid .* (vapor ./ cond.z))
-    # Reuse the (K, beta) Jacobian of the two-phase implicit derivatives.
-    # For v_i = z_i - l_i, d(log K_i)/dv_j = delta_ij*(1/v_i + 1/l_i)
-    # - 1/V - 1/L, and d(beta)/dv_j = 1/(L + V). Apply this chain rule
-    # directly to the scaled Hessian to avoid large trace-component reciprocals.
-    row_correction = SVector{N, F}(
-        ntuple(Val(N)) do i
-            total = sum(j -> jacobian[i, j] * K[j], 1:N)
-            jacobian[i, N + 1] / (L + V) - (inv(L) + inv(V)) * total
-        end
-    )
-    hessian = SMatrix{N, N, F}(
-        ntuple(Val(N * N)) do index
-            row = mod1(index, N)
-            col = (index - 1) ÷ N + 1
-            (scale[row] / scale[col]) * jacobian[row, col] * K[col] +
-                scale[row] * scale[col] * row_correction[row]
-        end
-    )
+    D = ForwardDiff.Dual{Nothing, F, N}
+    vapor_ad = SVector{N, D}(ntuple(Val(N)) do i
+        seed = ForwardDiff.Partials{N, F}(
+            ntuple(j -> ifelse(i == j, scale[i], zero(F)), Val(N)))
+        D(vapor[i], seed)
+    end)
+    liquid_ad = map(liquid, vapor_ad) do li, vi
+        D(li, -ForwardDiff.partials(vi))
+    end
+    forces = static_force_coefficients(eos, cond, F)
+    # Differentiate the amounts directly: converting a K-value Jacobian loses
+    # accuracy when a trace amount makes K very large or small.
+    potentials = static_newton_phase_potentials(eos, cond, vapor_ad, Val(:vapor), forces) -
+        static_newton_phase_potentials(eos, cond, liquid_ad, Val(:liquid), forces)
+    gradient = map(ForwardDiff.value, potentials)
+    hessian = SMatrix{N, N, F}(ntuple(Val(N * N)) do index
+        row = mod1(index, N)
+        col = (index - 1) ÷ N + 1
+        scale[row] * ForwardDiff.partials(potentials[row])[col]
+    end)
     return gradient, (hessian + transpose(hessian)) / 2, scale
 end
 

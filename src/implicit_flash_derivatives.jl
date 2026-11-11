@@ -51,7 +51,7 @@ end
 
 @inline function static_flash_system(eos, numeric_cond, K, V)
     # Seed only the equilibrium unknowns. The condition is numeric, so no
-    # nested AD types are needed. Shared by implicit derivatives and Newton.
+    # nested AD types are needed.
     u = static_flash_unknowns(K, V)
     residual = static_equilibrium_residual(eos, numeric_cond,
         seed_static_flash_unknowns(u))

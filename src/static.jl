@@ -536,9 +536,9 @@ end
         report = StabilityReport(true, true, true, true)
         return StaticStabilityResult(true, report, K, storage, true)
     end
-    # A two-sided test uses two trial phases against the SAME feed tangent.
-    # Switching the reference with the trial can hide a cross-phase instability.
-    if stability_reference_is_vapor(eos, cond, forces)
+    # SW's aqueous/nonaqueous correlations retain their own feed references.
+    # For a shared EOS, both trials use the same lower-Gibbs feed root.
+    if forces_per_phase(eos) || stability_reference_is_vapor(eos, cond, forces)
         reference = set_phase(cond, Val(:vapor))
         f_z = static_fugacities(eos, reference, forces, F)
     else
@@ -553,6 +553,10 @@ end
         stable_vapor, trivial_vapor, i_v, K_vapor, y = true, true, 0, K_wilson, cond.z
     end
     if check_liquid
+        if forces_per_phase(eos)
+            reference = set_phase(cond, Val(:liquid))
+            f_z = static_fugacities(eos, reference, forces, F)
+        end
         stable_liquid, trivial_liquid, i_l, K_liquid, x = static_michelsen_test(
             f_z, cond.z, K_wilson, eos, cond, forces, Val(false); kwarg...)
     else

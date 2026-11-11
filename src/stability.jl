@@ -53,10 +53,9 @@ function stability_2ph!(storage, K, eos, c, config::FlashConfig;
     vapor = (p = p, T = T, z = y, phase = :vapor)
     current_as_liquid = (p = p, T = T, z = z, phase = :liquid)
     current_as_vapor = (p = p, T = T, z = z, phase = :vapor)
-    # Both trial phases must be compared with ONE tangent plane. Choose the
-    # homogeneous feed with the lower Gibbs energy, including phase-dependent
-    # EOS coefficients, and retain its chemical potentials for both trials.
-    reference_is_vapor = stability_reference_is_vapor(eos, c, forces)
+    # SW's aqueous/nonaqueous correlations retain their own feed references.
+    # For a shared EOS, both trials use the same lower-Gibbs feed root.
+    reference_is_vapor = forces_per_phase(eos) || stability_reference_is_vapor(eos, c, forces)
     reference = reference_is_vapor ? current_as_vapor : current_as_liquid
     mixture_fugacities!(f_z, eos, reference, forces)
     if check_vapor
@@ -67,6 +66,9 @@ function stability_2ph!(storage, K, eos, c, config::FlashConfig;
     end
     stable_vapor, trivial_vapor, i_v = v
     if check_liquid
+        if forces_per_phase(eos)
+            mixture_fugacities!(f_z, eos, current_as_liquid, forces)
+        end
         wilson_estimate!(K, eos, p, T)
         l = michelsen_test!(liquid, f_z, f_xy, liquid.z, z, K, eos, c, forces, Val(false), config; kwarg...)
     else
