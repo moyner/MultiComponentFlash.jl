@@ -417,7 +417,7 @@ end
         iteration = 0
     elseif method isa NewtonFlash
         V, K, converged, iteration = static_newton_flash(
-            eos, cond, K, V, tolerance, maxiter, method.dMax)
+            eos, cond, K, V, tolerance, maxiter, method.dMax, forces)
     else
         iteration = 1
         if isnan(V) || negative_flash

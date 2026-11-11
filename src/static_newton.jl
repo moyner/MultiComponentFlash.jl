@@ -1,6 +1,4 @@
-# Phase-amount Gibbs minimization for the short reuse attempt described in
-# Belkadi et al. (2011), SPE 142132, Section 2.1. The caller handles fallback.
-@inline function static_newton_flash(eos, cond, K, V, tolerance, maxiter, dMax)
+@inline function static_newton_flash(eos, cond, K, V, tolerance, maxiter, dMax, forces)
     if isinf(V) || !(
             all(k -> isfinite(k) && k > 0, K) &&
                 all(z -> isfinite(z) && z > 0, cond.z)
@@ -23,7 +21,7 @@
         initial_V * vapor_mole_fraction(liquid_mole_fraction(zi, ki, initial_V), ki)
     end
     liquid, vapor, converged, iterations = static_gibbs_newton(
-        eos, cond, liquid, vapor, tolerance; maxiter = maxiter, dMax = dMax
+        eos, cond, liquid, vapor, tolerance, forces; maxiter = maxiter, dMax = dMax
     )
     total_liquid, total_vapor = sum(liquid), sum(vapor)
     next_K = (vapor / total_vapor) ./ (liquid / total_liquid)
@@ -42,7 +40,7 @@ end
 
 @inline function static_newton_system(
         eos, cond, liquid::SVector{N, F},
-        vapor::SVector{N, F}
+        vapor::SVector{N, F}, forces = static_force_coefficients(eos, cond, F)
     ) where {N, F}
     scale = sqrt.(liquid .* (vapor ./ cond.z))
     # Avoid capturing the Dual type in the seed closures.
@@ -54,9 +52,6 @@ end
     liquid_ad = map(liquid, vapor_ad) do li, vi
         typeof(vi)(li, -ForwardDiff.partials(vi))
     end
-    forces = static_force_coefficients(eos, cond, F)
-    # Differentiate the amounts directly: converting a K-value Jacobian loses
-    # accuracy when a trace amount makes K very large or small.
     potentials = static_newton_phase_potentials(eos, cond, vapor_ad, Val(:vapor), forces) -
         static_newton_phase_potentials(eos, cond, liquid_ad, Val(:liquid), forces)
     gradient = map(ForwardDiff.value, potentials)
@@ -72,9 +67,8 @@ end
 
 @inline function static_gibbs_newton(
         eos, cond, liquid::SVector{N, F},
-        vapor::SVector{N, F}, tolerance; maxiter = 3, dMax = 1.0
+        vapor::SVector{N, F}, tolerance, forces; maxiter = 3, dMax = 1.0
     ) where {N, F}
-    forces = static_force_coefficients(eos, cond, F)
     # StaticArrays' small Cholesky is allocation-free and accelerator compatible.
     # Larger systems retain the ordinary flash instead of a dynamic factorization.
     N <= 24 || return liquid, vapor, false, 0
@@ -82,7 +76,7 @@ end
         if !(static_positive_phase_amounts(liquid) && static_positive_phase_amounts(vapor))
             return liquid, vapor, false, iteration
         end
-        gradient, H, scale = static_newton_system(eos, cond, liquid, vapor)
+        gradient, H, scale = static_newton_system(eos, cond, liquid, vapor, forces)
         all(isfinite, gradient) && all(isfinite, H) ||
             return liquid, vapor, false, iteration
         factor = cholesky(Symmetric(H); check = false)
