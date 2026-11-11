@@ -45,14 +45,14 @@ end
         vapor::SVector{N, F}
     ) where {N, F}
     scale = sqrt.(liquid .* (vapor ./ cond.z))
-    D = ForwardDiff.Dual{Nothing, F, N}
-    vapor_ad = SVector{N, D}(ntuple(Val(N)) do i
+    # Avoid capturing the Dual type in the seed closures.
+    vapor_ad = SVector(ntuple(Val(N)) do i
         seed = ForwardDiff.Partials{N, F}(
             ntuple(j -> ifelse(i == j, scale[i], zero(F)), Val(N)))
-        D(vapor[i], seed)
+        ForwardDiff.Dual{Nothing}(vapor[i], seed)
     end)
     liquid_ad = map(liquid, vapor_ad) do li, vi
-        D(li, -ForwardDiff.partials(vi))
+        typeof(vi)(li, -ForwardDiff.partials(vi))
     end
     forces = static_force_coefficients(eos, cond, F)
     # Differentiate the amounts directly: converting a K-value Jacobian loses
