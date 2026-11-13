@@ -123,7 +123,9 @@ measure at that condition.
 
 The storage is returned after each immutable stability or flash call. Keeping
 the reference condition unchanged across bypassed calls prevents a sequence of
-small updates from drifting across a phase boundary without a new test.
+small updates from drifting away from the tested reference. The empirical
+distance bounds can still miss phase appearance even with a fixed reference;
+the smallest eigenvalue is not a global phase-stability certificate.
 """
 struct StaticStabilityStorage{C, T}
     reference::C

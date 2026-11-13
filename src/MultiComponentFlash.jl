@@ -56,6 +56,7 @@ module MultiComponentFlash
     include("flash.jl")
     include("derivatives.jl")
     include("stability.jl")
+    include("static_eigenvalues.jl")
     include("static.jl")
     include("implicit_flash_derivatives.jl")
     using .ImplicitFlashDerivatives: implicit_flash_derivatives

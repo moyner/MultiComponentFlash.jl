@@ -29,8 +29,9 @@ flash, allowing the vapor fraction to converge outside `[0, 1]`.
 Set `return_stability=true` to additionally return a
 [`StaticStabilityResult`](@ref). Its immutable `storage` can be supplied as
 `stability_storage` on the next call to enable the Michelsen bypass. The
-default `bypass_tolerance=10` uses the same conservative pressure, temperature
-and composition bounds as the mutable simulator integration.
+default `bypass_tolerance=10` scales empirical pressure, temperature and
+composition bounds. The smallest-eigenvalue measure describes local curvature;
+these bounds do not guarantee that a change stays in the single-phase region.
 Set `stability_bypass=false` to force a fresh stability test even when storage
 is supplied; `return_stability=true` still records a new reference if eligible.
 
@@ -232,14 +233,14 @@ end
         return false
     end
     reference = storage.reference
+    # Empirical shadow-region bounds, not a global phase-stability certificate.
+    # In particular, simultaneous composition and pressure changes can skip
+    # over the shadow region even when these independent bounds all hold.
     stable = maximum(abs, reference.z - cond.z) < b/tolerance &&
         abs(reference.p - cond.p) < b*abs(cond.p)/tolerance &&
         abs(reference.T - cond.T) < b*tolerance
     return stable
 end
-
-@inline static_minimum_eigenvalue(B::SMatrix) =
-    minimum(eigvals(Symmetric(B)))
 
 """Immutable Michelsen critical-point distance used by the stability bypass."""
 @generated function static_fugacity_coefficients(
@@ -601,7 +602,9 @@ updated [`StaticStabilityStorage`](@ref). Pass `result.storage` to a later call
 to enable Michelsen's stability bypass for nearby conditions.
 
 The bypass is only armed after both trial phases converge to trivial stable
-solutions. Calls inside the shadow region retain the full stability test.
+solutions. A detected nontrivial stable trial phase does not arm the bypass.
+The distance criterion is empirical: a bypassed update can skip over the shadow
+region and miss phase appearance. Set `use_bypass=false` for a fresh test.
 """
 @inline function stability_2ph_immutable(eos::GenericCubicEOS{E, R, N}, c,
         storage = nothing;
